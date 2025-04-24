@@ -25,6 +25,8 @@ BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/"
 RSS_FILENAME = "rss.xml"
 MAX_EPISODES = 14
 
+TODAY = datetime.now().strftime('%Y-%m-%d')
+
 def fetch_gaming_news():
     yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
     url = (
@@ -169,7 +171,7 @@ def push_to_pythonanywhere_api():
     upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/"
 
     for filename in [
-        f"final_podcast_{datetime.now().strftime('%Y-%m-%d')}.mp3",
+        f"final_podcast_{TODAY}.mp3",
         "breaking-news-intro-logo-314320.mp3",
         "rss.xml",
         "test.txt",
@@ -204,7 +206,7 @@ if not audio_data:
 print("✅ Audio data received!")
 
 os.makedirs(PODCAST_DIR, exist_ok=True)
-final_filename = save_audio_with_intro_outro(audio_data, datetime.now().strftime('%Y-%m-%d'))
+final_filename = save_audio_with_intro_outro(audio_data, TODAY)
 
 print("📬 Sending podcast email...")
 send_email_with_podcast(final_filename)
