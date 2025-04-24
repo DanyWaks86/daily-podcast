@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>Daily Video Games Digest</title>
+    <link>https://daily-podcast.onrender.com/podcast/</link>
+    <description>Quick daily updates on the biggest video game announcements, sales data, player milestones, and reviews. Hosted by Dany Waksman and powered by AI.</description>
+    <language>en-us</language>
+    <copyright>Dany Waksman 2025</copyright>
+    <itunes:author>Dany Waksman</itunes:author>
+    <itunes:owner>
+      <itunes:name>Dany Waksman</itunes:name>
+      <itunes:email>dany.waksman@gmail.com</itunes:email>
+    </itunes:owner>
+    <itunes:image href="https://daily-podcast.onrender.com/podcast/podcast-cover.jpg" />
+
+    <item>
+      <title>April 24 - Gaming News Digest</title>
+      <description>Gaming news highlights summarized by Dany Waksman. Listen now.</description>
+      <enclosure url="https://daily-podcast.onrender.com/podcast/final_podcast_2025-04-24.mp3" length="5000000" type="audio/mpeg" />
+      <guid>2025-04-24</guid>
+      <pubDate>Thu, 24 Apr 2025 06:00:00 GMT</pubDate>
+    </item>
+    
+  </channel>
+</rss>
