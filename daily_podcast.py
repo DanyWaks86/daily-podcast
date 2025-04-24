@@ -6,6 +6,13 @@ from pydub import AudioSegment
 import yagmail
 from gtts import gTTS
 
+# === STEP 2: Restore SSH private key from env variable ===
+if "SSH_PRIVATE_KEY" in os.environ:
+    os.makedirs("/opt/render/.ssh", exist_ok=True)
+    with open("/opt/render/.ssh/id_pythonanywhere", "w") as f:
+        f.write(os.environ["SSH_PRIVATE_KEY"])
+    os.chmod("/opt/render/.ssh/id_pythonanywhere", 0o600)
+
 # === CONFIGURATION ===
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 OPENAI_PROJECT_ID = os.environ.get("OPENAI_PROJECT_ID")
