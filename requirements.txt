@@ -1,0 +1,5 @@
+requests
+pydub
+yagmail
+gtts
+openai
