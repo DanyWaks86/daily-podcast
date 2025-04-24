@@ -1,14 +1,16 @@
 import os
 import requests
+import subprocess
 from datetime import datetime, timedelta
 from pydub import AudioSegment
 import yagmail
-import base64
 
 # === CONFIGURATION ===
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 OPENAI_PROJECT_ID = os.environ.get("OPENAI_PROJECT_ID")
 NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
+ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY")
+ELEVENLABS_VOICE_ID = "Av6SEi7Xo7fWEjACu6Pr"
 
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
 APP_PASSWORD = os.environ.get("APP_PASSWORD")
@@ -17,14 +19,10 @@ RECIPIENT_EMAIL = os.environ.get("RECIPIENT_EMAIL")
 PYTHONANYWHERE_USERNAME = os.environ.get("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.environ.get("PYTHONANYWHERE_API_TOKEN")
 
-ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY")
-ELEVENLABS_VOICE_ID = "Av6SEi7Xo7fWEjACu6Pr"
-
-PODCAST_DIR = "/opt/render/project/src/podcast/"
-BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/podcast/"
+PODCAST_DIR = "/opt/render/project/src/Podcast/"
+BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/"
 RSS_FILENAME = "rss.xml"
 MAX_EPISODES = 14
-
 
 def fetch_gaming_news():
     yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
@@ -42,7 +40,6 @@ def fetch_gaming_news():
         print(f"❌ Failed to fetch news: {response.text}")
         return []
     return response.json().get('articles', [])
-
 
 def generate_script(articles):
     articles_text = ""
@@ -84,47 +81,32 @@ Here are the real articles:
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
     return response.json().get('choices', [{}])[0].get('message', {}).get('content', '')
 
-
 def text_to_speech(text):
-    try:
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
-        headers = {
-            "xi-api-key": ELEVENLABS_API_KEY,
-            "Content-Type": "application/json"
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
+    headers = {
+        "xi-api-key": ELEVENLABS_API_KEY,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "text": text,
+        "voice_settings": {
+            "stability": 0.4,
+            "similarity_boost": 0.75
         }
-        payload = {
-            "text": text,
-            "model_id": "eleven_monolingual_v1",
-            "voice_settings": {
-                "stability": 0.3,
-                "similarity_boost": 0.7
-            }
-        }
-        response = requests.post(url, headers=headers, json=payload)
-        if response.status_code == 200:
-            return response.content
-        else:
-            print(f"❌ ElevenLabs TTS Error: {response.text}")
-            return None
-    except Exception as e:
-        print(f"❌ ElevenLabs TTS Error: {e}")
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    if response.status_code != 200:
+        print("❌ ElevenLabs TTS Error:", response.text)
         return None
-
+    return response.content
 
 def save_audio_with_intro_outro(audio_data, filename_base):
-    raw_audio_path = os.path.join(PODCAST_DIR, f"temp_audio_{filename_base}.mp3")
-    with open(raw_audio_path, "wb") as f:
-        f.write(audio_data)
-
     intro = AudioSegment.from_file(os.path.join(PODCAST_DIR, "breaking-news-intro-logo-314320.mp3"), format="mp3") - 8
-    voice = AudioSegment.from_file(raw_audio_path, format="mp3")
+    voice = AudioSegment.from_file(io.BytesIO(audio_data), format="mp3")
     combined = intro + voice + intro
     final_filename = os.path.join(PODCAST_DIR, f"final_podcast_{filename_base}.mp3")
     combined.export(final_filename, format="mp3")
-
-    os.remove(raw_audio_path)
     return final_filename
-
 
 def update_rss():
     files = sorted(
@@ -139,19 +121,18 @@ def update_rss():
             pub_date = datetime.strptime(date_part, "%Y-%m-%d")
         except ValueError:
             continue
-        item_description = f"Daily summary of gaming news headlines. Full audio episode."
         rss_items += f"""
     <item>
       <title>{pub_date.strftime('%B %d')} - Gaming News Digest</title>
-      <description>{item_description} Listen here: {BASE_URL}{f}</description>
-      <enclosure url=\"{BASE_URL}{f}\" length=\"5000000\" type=\"audio/mpeg\" />
+      <description><![CDATA[Gaming news highlights summarized by Dany Waksman. Full articles at: {BASE_URL}{f}]]></description>
+      <enclosure url="{BASE_URL}{f}" length="5000000" type="audio/mpeg" />
       <guid>{date_part}</guid>
       <pubDate>{pub_date.strftime('%a, %d %b %Y 06:00:00 GMT')}</pubDate>
     </item>
-"""
+    """
 
-    rss_feed = f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<rss version=\"2.0\" xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\">
+    rss_feed = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
   <channel>
     <title>Daily Video Games Digest</title>
     <link>{BASE_URL}</link>
@@ -163,13 +144,12 @@ def update_rss():
       <itunes:name>Dany Waksman</itunes:name>
       <itunes:email>dany.waksman@gmail.com</itunes:email>
     </itunes:owner>
-    <itunes:image href=\"{BASE_URL}podcast-cover.jpg\" />
+    <itunes:image href="{BASE_URL}podcast-cover.jpg" />
 {rss_items}
   </channel>
-</rss>"
+</rss>"""
     with open(os.path.join(PODCAST_DIR, RSS_FILENAME), "w") as f:
         f.write(rss_feed)
-
 
 def send_email_with_podcast(final_filename):
     yag = yagmail.SMTP(user=SENDER_EMAIL, password=APP_PASSWORD)
@@ -180,13 +160,12 @@ def send_email_with_podcast(final_filename):
         attachments=final_filename
     )
 
-
 def push_to_pythonanywhere_api():
     print("🚀 Uploading files to PythonAnywhere via API...")
     headers = {
         "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
     }
-    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/podcast/"
+    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/"
 
     for filename in [
         f"final_podcast_{datetime.now().strftime('%Y-%m-%d')}.mp3",
@@ -201,7 +180,6 @@ def push_to_pythonanywhere_api():
                 print(f"❌ Failed to upload {filename}: {response.text}")
             else:
                 print(f"✅ Uploaded {filename} to PythonAnywhere.")
-
 
 # === MAIN PROCESS ===
 print("📰 Fetching gaming articles...")
@@ -225,8 +203,6 @@ if not audio_data:
 print("✅ Audio data received!")
 
 os.makedirs(PODCAST_DIR, exist_ok=True)
-
-print("🎧 Saving final podcast with intro/outro...")
 final_filename = save_audio_with_intro_outro(audio_data, datetime.now().strftime('%Y-%m-%d'))
 
 print("📬 Sending podcast email...")
