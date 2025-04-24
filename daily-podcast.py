@@ -14,9 +14,12 @@ NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
 APP_PASSWORD = os.environ.get("APP_PASSWORD")
 RECIPIENT_EMAIL = os.environ.get("RECIPIENT_EMAIL")
+PYTHONANYWHERE_SSH_USER = os.environ.get("PYTHONANYWHERE_SSH_USER")
+PYTHONANYWHERE_SSH_HOST = os.environ.get("PYTHONANYWHERE_SSH_HOST")
+PYTHONANYWHERE_REMOTE_DIR = os.environ.get("PYTHONANYWHERE_REMOTE_DIR")
 
 PODCAST_DIR = "/opt/render/project/src/podcast/"
-BASE_URL = "https://daily-podcast-files.onrender.com/podcast/"
+BASE_URL = "https://danywaks.pythonanywhere.com/podcast/"
 RSS_FILENAME = "rss.xml"
 MAX_EPISODES = 14
 
@@ -136,7 +139,7 @@ def update_rss():
     <itunes:image href=\"{BASE_URL}podcast-cover.jpg\" />
 {rss_items}
   </channel>
-</rss>"
+</rss>"""
     with open(os.path.join(PODCAST_DIR, RSS_FILENAME), "w") as f:
         f.write(rss_feed)
 
@@ -150,21 +153,16 @@ def send_email_with_podcast(final_filename):
     )
 
 def push_to_pythonanywhere():
-    print("🚀 Copying files to PythonAnywhere via SCP...")
-    target = "danywaks@ssh.pythonanywhere.com:/home/danywaks/podcast2/"
-    files_to_copy = [
-        os.path.join(PODCAST_DIR, f"final_podcast_{datetime.now().strftime('%Y-%m-%d')}.mp3"),
-        os.path.join(PODCAST_DIR, "rss.xml"),
-    ]
-    for file in files_to_copy:
-        result = subprocess.run(
-            ["scp", "-i", os.path.expanduser("~/.ssh/id_pythonanywhere"), file, target],
-            capture_output=True,
-        )
-        if result.returncode != 0:
-            print("❌ SCP failed:", result.stderr.decode())
-        else:
-            print(f"✅ File {os.path.basename(file)} copied successfully.")
+    print("🔐 Pushing podcast files to PythonAnywhere...")
+    key_path = os.path.expanduser("~/.ssh/id_pythonanywhere")
+    for filename in os.listdir(PODCAST_DIR):
+        full_path = os.path.join(PODCAST_DIR, filename)
+        subprocess.run([
+            "scp", "-i", key_path,
+            full_path,
+            f"{PYTHONANYWHERE_SSH_USER}@{PYTHONANYWHERE_SSH_HOST}:{PYTHONANYWHERE_REMOTE_DIR}/{filename}"
+        ])
+    print("✅ Files pushed to PythonAnywhere!")
 
 # === MAIN PROCESS ===
 print("📰 Fetching gaming articles...")
@@ -201,7 +199,7 @@ send_email_with_podcast(final_filename)
 print("🛠️ Updating RSS feed...")
 update_rss()
 
-print("🚀 Copying to PythonAnywhere via SSH...")
+print("🚀 Pushing podcast folder to PythonAnywhere...")
 push_to_pythonanywhere()
 
 print("✅ Done!")
