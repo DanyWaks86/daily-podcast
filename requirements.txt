@@ -3,3 +3,4 @@ pydub
 yagmail
 gtts
 openai
+paramiko
