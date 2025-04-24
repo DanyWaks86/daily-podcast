@@ -19,7 +19,7 @@ RECIPIENT_EMAIL = os.environ.get("RECIPIENT_EMAIL")
 PYTHONANYWHERE_USERNAME = os.environ.get("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.environ.get("PYTHONANYWHERE_API_TOKEN")
 
-PODCAST_DIR = "/opt/render/project/src/Podcast/"
+PODCAST_DIR = "/opt/render/project/src/podcast/"
 BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/"
 RSS_FILENAME = "rss.xml"
 MAX_EPISODES = 14
