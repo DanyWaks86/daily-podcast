@@ -6,50 +6,22 @@ from pydub import AudioSegment
 import yagmail
 from gtts import gTTS
 
-# === STEP 2: Restore SSH private key from env variable ===
-if "SSH_PRIVATE_KEY" in os.environ:
-    os.makedirs("/opt/render/.ssh", exist_ok=True)
-    with open("/opt/render/.ssh/id_pythonanywhere", "w") as f:
-        f.write(os.environ["SSH_PRIVATE_KEY"])
-    os.chmod("/opt/render/.ssh/id_pythonanywhere", 0o600)
-
 # === CONFIGURATION ===
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 OPENAI_PROJECT_ID = os.environ.get("OPENAI_PROJECT_ID")
 NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
+
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
 APP_PASSWORD = os.environ.get("APP_PASSWORD")
 RECIPIENT_EMAIL = os.environ.get("RECIPIENT_EMAIL")
-SSH_USERNAME = os.environ.get("SSH_USERNAME")
-SSH_HOSTNAME = os.environ.get("SSH_HOSTNAME")
-SSH_KEY_PATH = "/opt/render/.ssh/id_pythonanywhere"
-SSH_PRIVATE_KEY = os.environ.get("SSH_PRIVATE_KEY")
+
+PYTHONANYWHERE_USERNAME = os.environ.get("PYTHONANYWHERE_USERNAME")
+PYTHONANYWHERE_API_TOKEN = os.environ.get("PYTHONANYWHERE_API_TOKEN")
 
 PODCAST_DIR = "/opt/render/project/src/podcast/"
-BASE_URL = "https://daily-podcast-files.onrender.com/podcast/"
+BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/podcast/"
 RSS_FILENAME = "rss.xml"
 MAX_EPISODES = 14
-
-# === STEP 1: Set up SSH Key ===
-if SSH_PRIVATE_KEY:
-    os.makedirs("/opt/render/.ssh", exist_ok=True)
-    with open(SSH_KEY_PATH, "w") as f:
-        f.write(SSH_PRIVATE_KEY)
-    os.chmod(SSH_KEY_PATH, 0o600)
-
-# === STEP 2: Disable strict SSH host checking ===
-ssh_config_path = "/opt/render/.ssh/config"
-os.makedirs("/opt/render/.ssh", exist_ok=True)
-with open(ssh_config_path, "w") as f:
-    f.write(f"""
-Host pythonanywhere
-    HostName {SSH_HOSTNAME}
-    User {SSH_USERNAME}
-    IdentityFile {SSH_KEY_PATH}
-    StrictHostKeyChecking no
-    UserKnownHostsFile=/dev/null
-""")
-os.chmod(ssh_config_path, 0o600)
 
 def fetch_gaming_news():
     yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
@@ -96,7 +68,6 @@ Here are the real articles:
 
 {articles_text}
 """
-
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "OpenAI-Project": OPENAI_PROJECT_ID
@@ -123,7 +94,7 @@ def text_to_speech(text):
 def save_audio_with_intro_outro(raw_audio_path, filename_base):
     intro = AudioSegment.from_file(os.path.join(PODCAST_DIR, "breaking-news-intro-logo-314320.mp3"), format="mp3") - 8
     voice = AudioSegment.from_file(raw_audio_path, format="mp3")
-    combined = intro + voice + intro  # reuse intro as outro
+    combined = intro + voice + intro
     final_filename = os.path.join(PODCAST_DIR, f"final_podcast_{filename_base}.mp3")
     combined.export(final_filename, format="mp3")
     return final_filename
@@ -180,23 +151,27 @@ def send_email_with_podcast(final_filename):
         attachments=final_filename
     )
 
-def scp_to_pythonanywhere(local_file):
-    remote_path = f"/home/{SSH_USERNAME}/podcast/"
-    scp_cmd = f"scp -F /opt/render/.ssh/config {local_file} pythonanywhere:{remote_path}"
-    print(f"🔐 SCPing {local_file} to PythonAnywhere...")
-    subprocess.run(scp_cmd, shell=True)
+def push_to_pythonanywhere_api():
+    print("🚀 Uploading files to PythonAnywhere via API...")
+    headers = {
+        "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
+    }
+    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/podcast/"
 
-def push_to_pythonanywhere():
-    print("🚀 Pushing podcast folder to PythonAnywhere...")
-    files_to_push = [
-        f"{PODCAST_DIR}final_podcast_{datetime.now().strftime('%Y-%m-%d')}.mp3",
-        f"{PODCAST_DIR}raw_audio_{datetime.now().strftime('%Y-%m-%d')}.mp3",
-        f"{PODCAST_DIR}{RSS_FILENAME}",
-        os.path.join(PODCAST_DIR, "breaking-news-intro-logo-314320.mp3"),
-        os.path.join(PODCAST_DIR, "test.txt")
-    ]
-    for file in files_to_push:
-        scp_to_pythonanywhere(file)
+    for filename in [
+        f"final_podcast_{datetime.now().strftime('%Y-%m-%d')}.mp3",
+        f"raw_audio_{datetime.now().strftime('%Y-%m-%d')}.mp3",
+        "breaking-news-intro-logo-314320.mp3",
+        "rss.xml",
+        "test.txt",
+    ]:
+        local_path = os.path.join(PODCAST_DIR, filename)
+        with open(local_path, "rb") as f:
+            response = requests.post(upload_url + filename, headers=headers, files={"content": f})
+            if response.status_code != 200:
+                print(f"❌ Failed to upload {filename}: {response.text}")
+            else:
+                print(f"✅ Uploaded {filename} to PythonAnywhere.")
 
 # === MAIN PROCESS ===
 print("📰 Fetching gaming articles...")
@@ -234,6 +209,6 @@ print("🛠️ Updating RSS feed...")
 update_rss()
 
 print("🚀 Pushing podcast folder to PythonAnywhere...")
-push_to_pythonanywhere()
+push_to_pythonanywhere_api()
 
 print("✅ Done!")
