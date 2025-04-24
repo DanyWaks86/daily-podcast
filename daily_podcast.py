@@ -17,16 +17,15 @@ if "SSH_PRIVATE_KEY" in os.environ:
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 OPENAI_PROJECT_ID = os.environ.get("OPENAI_PROJECT_ID")
 NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
-
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
 APP_PASSWORD = os.environ.get("APP_PASSWORD")
 RECIPIENT_EMAIL = os.environ.get("RECIPIENT_EMAIL")
-PYTHONANYWHERE_SSH_USER = os.environ.get("PYTHONANYWHERE_SSH_USER")
-PYTHONANYWHERE_SSH_HOST = os.environ.get("PYTHONANYWHERE_SSH_HOST")
-PYTHONANYWHERE_REMOTE_DIR = os.environ.get("PYTHONANYWHERE_REMOTE_DIR")
+SSH_KEY_PATH = os.environ.get("SSH_KEY_PATH")
+SSH_USERNAME = os.environ.get("SSH_USERNAME")
+SSH_HOSTNAME = os.environ.get("SSH_HOSTNAME")
 
 PODCAST_DIR = "/opt/render/project/src/podcast/"
-BASE_URL = "https://danywaks.pythonanywhere.com/podcast/"
+BASE_URL = "https://daily-podcast-files.onrender.com/podcast/"
 RSS_FILENAME = "rss.xml"
 MAX_EPISODES = 14
 
@@ -75,7 +74,6 @@ Here are the real articles:
 
 {articles_text}
 """
-
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "OpenAI-Project": OPENAI_PROJECT_ID
@@ -102,16 +100,16 @@ def text_to_speech(text):
 def save_audio_with_intro_outro(raw_audio_path, filename_base):
     intro = AudioSegment.from_file(os.path.join(PODCAST_DIR, "breaking-news-intro-logo-314320.mp3"), format="mp3") - 8
     voice = AudioSegment.from_file(raw_audio_path, format="mp3")
-    combined = intro + voice + intro  # reuse intro as outro
+    combined = intro + voice + intro
     final_filename = os.path.join(PODCAST_DIR, f"final_podcast_{filename_base}.mp3")
     combined.export(final_filename, format="mp3")
     return final_filename
 
 def update_rss():
-    files = sorted(
-        [f for f in os.listdir(PODCAST_DIR) if f.startswith("final_podcast_") and f.endswith(".mp3")],
-        reverse=True
-    )[:MAX_EPISODES]
+    files = sorted([
+        f for f in os.listdir(PODCAST_DIR)
+        if f.startswith("final_podcast_") and f.endswith(".mp3")
+    ], reverse=True)[:MAX_EPISODES]
 
     rss_items = ""
     for f in files:
@@ -159,17 +157,25 @@ def send_email_with_podcast(final_filename):
         attachments=final_filename
     )
 
-def push_to_pythonanywhere():
-    print("🔐 Pushing podcast files to PythonAnywhere...")
-    key_path = os.path.expanduser("~/.ssh/id_pythonanywhere")
-    for filename in os.listdir(PODCAST_DIR):
-        full_path = os.path.join(PODCAST_DIR, filename)
-        subprocess.run([
-            "scp", "-i", key_path,
-            full_path,
-            f"{PYTHONANYWHERE_SSH_USER}@{PYTHONANYWHERE_SSH_HOST}:{PYTHONANYWHERE_REMOTE_DIR}/{filename}"
-        ])
-    print("✅ Files pushed to PythonAnywhere!")
+def scp_to_pythonanywhere(filename):
+    print(f"🔐 SCPing {filename} to PythonAnywhere...")
+    subprocess.run([
+        "scp",
+        "-i", SSH_KEY_PATH,
+        filename,
+        f"{SSH_USERNAME}@{SSH_HOSTNAME}:/home/{SSH_USERNAME}/podcast2/"
+    ])
+
+def auto_push_to_pythonanywhere():
+    print("🚀 Pushing podcast folder to PythonAnywhere...")
+    for fname in [
+        f"final_podcast_{datetime.now().strftime('%Y-%m-%d')}.mp3",
+        f"raw_audio_{datetime.now().strftime('%Y-%m-%d')}.mp3",
+        "rss.xml",
+        "breaking-news-intro-logo-314320.mp3",
+        "test.txt"
+    ]:
+        scp_to_pythonanywhere(os.path.join(PODCAST_DIR, fname))
 
 # === MAIN PROCESS ===
 print("📰 Fetching gaming articles...")
@@ -207,6 +213,6 @@ print("🛠️ Updating RSS feed...")
 update_rss()
 
 print("🚀 Pushing podcast folder to PythonAnywhere...")
-push_to_pythonanywhere()
+auto_push_to_pythonanywhere()
 
 print("✅ Done!")
