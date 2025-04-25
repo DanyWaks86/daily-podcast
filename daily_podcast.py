@@ -147,7 +147,7 @@ def update_rss():
       <itunes:name>Dany Waksman</itunes:name>
       <itunes:email>hatunadv@gmail.com</itunes:email>
     </itunes:owner>
-    <itunes:image href="{BASE_URL}podcast-cover.jpg" />
+    <itunes:image href="https://danywaks.pythonanywhere.com/Podcast/podcast-cover.jpg"/>
 {rss_items}
   </channel>
 </rss>"""
