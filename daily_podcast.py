@@ -82,7 +82,7 @@ Here are the real articles:
         "temperature": 0.7
     }
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
-    return response.json().get('choices', [{}])[0].get('message', {}).get('content', '')
+    return response.json().get('choices', [{}])[0].get('message', {}).get('content', ''), articles
 
 def text_to_speech(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
@@ -108,8 +108,55 @@ def save_audio_with_intro_outro(audio_data, filename_base):
     voice = AudioSegment.from_file(io.BytesIO(audio_data), format="mp3")
     combined = intro + voice + intro
     final_filename = os.path.join(PODCAST_DIR, f"final_podcast_{filename_base}.mp3")
-    combined.export(final_filename, format="mp3")
+    combined.export(
+        final_filename,
+        format="mp3",
+        tags={
+            "title": f"Daily Video Games Digest – {filename_base}",
+            "artist": "Dany Waksman",
+            "album": "Daily Video Games Digest"
+        }
+    )
     return final_filename
+
+def generate_show_notes(articles, date_str):
+    html_content = f"""<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <title>Daily Video Games Digest – {date_str}</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; max-width: 700px; margin: auto; padding: 20px; }}
+        h1 {{ color: #333; }}
+        ul {{ line-height: 1.6; }}
+        footer {{ margin-top: 40px; font-size: 0.9em; color: #666; }}
+    </style>
+</head>
+<body>
+    <h1>Daily Video Games Digest – {date_str}</h1>
+    <p>Welcome to today's episode! Here are the articles we talked about:</p>
+    <ul>
+"""
+    for article in articles:
+        title = article.get('title', 'No title')
+        link = article.get('url', '#')
+        source = article.get('source', {}).get('name', 'Unknown')
+        html_content += f"        <li><a href=\"{link}\">{title}</a> – Source: {source}</li>\n"
+
+    html_content += f"""
+    </ul>
+    <h2>🎧 Listen to the episode:</h2>
+    <audio controls>
+        <source src=\"{BASE_URL}final_podcast_{date_str}.mp3\" type=\"audio/mpeg\">
+        Your browser does not support the audio element.
+    </audio>
+    <footer>
+        <p>Subscribe on your favorite platform: Apple Podcasts, Spotify, Amazon Music.</p>
+    </footer>
+</body>
+</html>"""
+    with open(os.path.join(PODCAST_DIR, f"podcast_{date_str}.html"), "w") as f:
+        f.write(html_content)
 
 def update_rss():
     files = sorted(
@@ -127,15 +174,16 @@ def update_rss():
         rss_items += f"""
     <item>
       <title>{pub_date.strftime('%B %d')} - Gaming News Digest</title>
-      <description><![CDATA[Gaming news highlights summarized by Dany Waksman. Full articles at: {BASE_URL}{f}]]></description>
-      <enclosure url="{BASE_URL}{f}" length="5000000" type="audio/mpeg" />
+      <link>{BASE_URL}podcast_{date_part}.html</link>
+      <description><![CDATA[Gaming news highlights summarized by Dany Waksman. Full articles at: {BASE_URL}final_podcast_{date_part}.mp3]]></description>
+      <enclosure url=\"{BASE_URL}final_podcast_{date_part}.mp3\" length=\"5000000\" type=\"audio/mpeg\" />
       <guid>{date_part}</guid>
       <pubDate>{pub_date.strftime('%a, %d %b %Y 06:00:00 GMT')}</pubDate>
     </item>
     """
 
-    rss_feed = f"""<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+    rss_feed = f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<rss version=\"2.0\" xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\">
   <channel>
     <title>Daily Video Games Digest</title>
     <link>{BASE_URL}</link>
@@ -147,10 +195,18 @@ def update_rss():
       <itunes:name>Dany Waksman</itunes:name>
       <itunes:email>hatunadv@gmail.com</itunes:email>
     </itunes:owner>
-    <itunes:image href="https://danywaks.pythonanywhere.com/Podcast/podcast-cover.png"/>
+    <itunes:image href=\"https://danywaks.pythonanywhere.com/Podcast/podcast-cover.png\"/>
+    <itunes:explicit>no</itunes:explicit>
+    <itunes:category text=\"Leisure\">
+      <itunes:category text=\"Video Games\" />
+    </itunes:category>
+    <itunes:category text=\"News\">
+      <itunes:category text=\"Daily News\" />
+      <itunes:category text=\"Tech News\" />
+    </itunes:category>
 {rss_items}
   </channel>
-</rss>"""
+</rss>"
     with open(os.path.join(PODCAST_DIR, RSS_FILENAME), "w") as f:
         f.write(rss_feed)
 
@@ -172,6 +228,7 @@ def push_to_pythonanywhere_api():
 
     for filename in [
         f"final_podcast_{TODAY}.mp3",
+        f"podcast_{TODAY}.html",
         "breaking-news-intro-logo-314320.mp3",
         "rss.xml",
         "test.txt",
@@ -193,7 +250,7 @@ if not articles:
 print(f"✅ Fetched {len(articles)} articles.")
 
 print("🧠 Generating podcast script...")
-script = generate_script(articles)
+script, articles_used = generate_script(articles)
 if not script:
     print("❌ Failed to generate script.")
     exit()
@@ -207,6 +264,9 @@ print("✅ Audio data received!")
 
 os.makedirs(PODCAST_DIR, exist_ok=True)
 final_filename = save_audio_with_intro_outro(audio_data, TODAY)
+
+print("📝 Generating show notes page...")
+generate_show_notes(articles_used, TODAY)
 
 print("📬 Sending podcast email...")
 send_email_with_podcast(final_filename)
