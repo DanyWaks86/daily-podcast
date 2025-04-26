@@ -82,7 +82,7 @@ def upload_to_pythonanywhere(local_path, remote_filename):
     headers = {
         "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
     }
-    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast2/{remote_filename}"
+    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{remote_filename}"
 
     with open(local_path, "rb") as f:
         response = requests.post(upload_url, headers=headers, files={"content": f})
@@ -90,6 +90,7 @@ def upload_to_pythonanywhere(local_path, remote_filename):
             print(f"❌ Failed to upload {remote_filename}: {response.text}")
         else:
             print(f"✅ Uploaded {remote_filename} to PythonAnywhere.")
+
 
 # Upload both files
 upload_to_pythonanywhere(VOICE_OUTPUT_PATH, os.path.basename(VOICE_OUTPUT_PATH))
