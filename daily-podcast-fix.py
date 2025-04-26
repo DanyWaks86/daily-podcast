@@ -1,4 +1,6 @@
-import requests import subprocess import os
+import requests
+import subprocess
+import os
 
 === CONFIGURATION ===
 
