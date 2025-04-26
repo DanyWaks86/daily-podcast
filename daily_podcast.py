@@ -206,7 +206,8 @@ def update_rss():
     </itunes:category>
 {rss_items}
   </channel>
-</rss>"
+</rss>
+"""
     with open(os.path.join(PODCAST_DIR, RSS_FILENAME), "w") as f:
         f.write(rss_feed)
 
