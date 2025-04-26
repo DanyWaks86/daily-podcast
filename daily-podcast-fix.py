@@ -2,11 +2,13 @@ import requests
 import subprocess
 import os
 from datetime import datetime
+import yagmail
 
 # === CONFIGURATION ===
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")  # Your ElevenLabs API Key
-PYTHONANYWHERE_USERNAME = os.getenv("PYTHONANYWHERE_USERNAME")
-PYTHONANYWHERE_API_TOKEN = os.getenv("PYTHONANYWHERE_API_TOKEN")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+APP_PASSWORD = os.getenv("APP_PASSWORD")
+RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
 
 VOICE_ID = "Av6SEi7Xo7fWEjACu6Pr"  # Your ElevenLabs Voice ID (Dany)
 
@@ -76,22 +78,21 @@ except subprocess.CalledProcessError as e:
     print("❌ Error during ffmpeg merge:", e)
     exit(1)
 
-# === Step 3: Upload both files to PythonAnywhere ===
+# === Step 3: Email both files to yourself ===
+def send_email_with_attachments(wav_path, mp3_path):
+    if not all([SENDER_EMAIL, APP_PASSWORD, RECIPIENT_EMAIL]):
+        print("❌ Missing email credentials. Please set SENDER_EMAIL, APP_PASSWORD, and RECIPIENT_EMAIL.")
+        exit(1)
 
-def upload_to_pythonanywhere(local_path, remote_filename):
-    headers = {
-        "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
-    }
-    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{remote_filename}"
+    yag = yagmail.SMTP(user=SENDER_EMAIL, password=APP_PASSWORD)
+    
+    yag.send(
+        to=RECIPIENT_EMAIL,
+        subject=f"🎧 Daily Podcast Voice Test – {datetime.now().strftime('%B %d, %Y')}",
+        contents="Here are your voicefix test podcast files attached. Enjoy!",
+        attachments=[wav_path, mp3_path]
+    )
 
-    with open(local_path, "rb") as f:
-        response = requests.post(upload_url, headers=headers, files={"content": f})
-        if response.status_code != 200:
-            print(f"❌ Failed to upload {remote_filename}: {response.text}")
-        else:
-            print(f"✅ Uploaded {remote_filename} to PythonAnywhere.")
+    print(f"✅ Email sent successfully to {RECIPIENT_EMAIL} with attachments!")
 
-
-# Upload both files
-upload_to_pythonanywhere(VOICE_OUTPUT_PATH, os.path.basename(VOICE_OUTPUT_PATH))
-upload_to_pythonanywhere(FINAL_OUTPUT_PATH, os.path.basename(FINAL_OUTPUT_PATH))
+send_email_with_attachments(VOICE_OUTPUT_PATH, FINAL_OUTPUT_PATH)
