@@ -13,7 +13,12 @@ VOICE_OUTPUT_PATH = os.path.join(PODCAST_DIR, "voice_test.wav")  # Downloaded El
 FINAL_OUTPUT_PATH = os.path.join(PODCAST_DIR, "final_podcast_TEST.mp3")  # Final podcast output for testing
 
 # Text to generate
-TEXT_TO_SPEAK = "Welcome to the Daily Video Games Digest. I'm Dany Waksman, a video game enthusiast, bringing you this AI-generated podcast to stay informed with the latest in the gaming world. Let's jump right in."
+TEXT_TO_SPEAK = (
+    "Welcome to the Daily Video Games Digest. "
+    "I'm Dany Waksman, a video game enthusiast, "
+    "bringing you this AI-generated podcast to stay informed "
+    "with the latest in the gaming world. Let's jump right in."
+)
 
 # === Step 1: Generate Voice Audio ===
 headers = {
@@ -47,7 +52,6 @@ with open(VOICE_OUTPUT_PATH, "wb") as f:
 print("✅ Voice audio downloaded successfully.")
 
 # === Step 2: Merge Intro and Voice ===
-# Using ffmpeg to concat intro + generated voice, no re-encoding
 try:
     subprocess.run([
         "ffmpeg",
