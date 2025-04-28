@@ -104,10 +104,29 @@ def text_to_speech(text):
     return response.content
 
 def save_audio_with_intro_outro(audio_data, filename_base):
+    raw_voice_path = os.path.join(PODCAST_DIR, "voice_raw.mp3")
+    normalized_voice_path = os.path.join(PODCAST_DIR, "voice_normalized.wav")
+
+    # Save ElevenLabs raw output first
+    with open(raw_voice_path, "wb") as f:
+        f.write(audio_data)
+
+    # Normalize the voice audio using ffmpeg loudnorm filter
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-i", raw_voice_path,
+        "-af", "loudnorm",
+        normalized_voice_path
+    ], check=True)
+
+    # Load intro music and normalized voice
     intro = AudioSegment.from_file(os.path.join(PODCAST_DIR, "breaking-news-intro-logo-314320.mp3"), format="mp3") - 8
-    voice = AudioSegment.from_file(io.BytesIO(audio_data), format="mp3")
+    voice = AudioSegment.from_file(normalized_voice_path, format="wav")
+
+    # Combine intro + voice + outro
     combined = intro + voice + intro
     final_filename = os.path.join(PODCAST_DIR, f"final_podcast_{filename_base}.mp3")
+
     combined.export(
         final_filename,
         format="mp3",
@@ -118,6 +137,7 @@ def save_audio_with_intro_outro(audio_data, filename_base):
         }
     )
     return final_filename
+
 
 def generate_show_notes(articles, date_str):
     html_content = f"""<!DOCTYPE html>
@@ -159,57 +179,38 @@ def generate_show_notes(articles, date_str):
         f.write(html_content)
 
 def update_rss():
-    files = sorted(
-        [f for f in os.listdir(PODCAST_DIR) if f.startswith("final_podcast_") and f.endswith(".mp3")],
-        reverse=True
-    )[:MAX_EPISODES]
+    rss_path = os.path.join(PODCAST_DIR, RSS_FILENAME)
+    if not os.path.exists(rss_path):
+        print("❌ RSS file not found.")
+        return
 
-    rss_items = ""
-    for f in files:
-        date_part = f.replace("final_podcast_", "").replace(".mp3", "")
-        try:
-            pub_date = datetime.strptime(date_part, "%Y-%m-%d")
-        except ValueError:
-            continue
-        rss_items += f"""
+    with open(rss_path, "r", encoding="utf-8") as f:
+        rss_content = f.read()
+
+    today_date = datetime.now().strftime('%Y-%m-%d')
+    pub_date_formatted = datetime.now().strftime('%a, %d %b %Y 06:00:00 GMT')
+
+    if today_date in rss_content:
+        print("✅ Today's episode already in RSS.")
+        return
+
+    new_item = f"""
     <item>
-      <title>{pub_date.strftime('%B %d')} - Gaming News Digest</title>
-      <link>{BASE_URL}podcast_{date_part}.html</link>
-      <description><![CDATA[Gaming news highlights summarized by Dany Waksman. Full articles at: {BASE_URL}final_podcast_{date_part}.mp3]]></description>
-      <enclosure url=\"{BASE_URL}final_podcast_{date_part}.mp3\" length=\"5000000\" type=\"audio/mpeg\" />
-      <guid>{date_part}</guid>
-      <pubDate>{pub_date.strftime('%a, %d %b %Y 06:00:00 GMT')}</pubDate>
+      <title>{datetime.now().strftime('%B %d')} - Gaming News Digest</title>
+      <link>{BASE_URL}podcast_{today_date}.html</link>
+      <description><![CDATA[Gaming news highlights summarized by Dany Waksman. Full articles at: {BASE_URL}final_podcast_{today_date}.mp3]]></description>
+      <enclosure url="{BASE_URL}final_podcast_{today_date}.mp3" length="5000000" type="audio/mpeg" />
+      <guid>{today_date}</guid>
+      <pubDate>{pub_date_formatted}</pubDate>
     </item>
     """
 
-    rss_feed = f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<rss version=\"2.0\" xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\">
-  <channel>
-    <title>Daily Video Games Digest</title>
-    <link>{BASE_URL}</link>
-    <description>Quick daily updates on the biggest video game announcements, sales data, player milestones, and reviews. Hosted by Dany Waksman and powered by AI.</description>
-    <language>en-us</language>
-    <copyright>Dany Waksman 2025</copyright>
-    <itunes:author>Dany Waksman</itunes:author>
-    <itunes:owner>
-      <itunes:name>Dany Waksman</itunes:name>
-      <itunes:email>hatunadv@gmail.com</itunes:email>
-    </itunes:owner>
-    <itunes:image href=\"https://danywaks.pythonanywhere.com/Podcast/podcast-cover.png\"/>
-    <itunes:explicit>no</itunes:explicit>
-    <itunes:category text=\"Leisure\">
-      <itunes:category text=\"Video Games\" />
-    </itunes:category>
-    <itunes:category text=\"News\">
-      <itunes:category text=\"Daily News\" />
-      <itunes:category text=\"Tech News\" />
-    </itunes:category>
-{rss_items}
-  </channel>
-</rss>
-"""
-    with open(os.path.join(PODCAST_DIR, RSS_FILENAME), "w") as f:
-        f.write(rss_feed)
+    updated_rss = rss_content.replace("</channel>", f"{new_item}\n  </channel>")
+
+    with open(rss_path, "w", encoding="utf-8") as f:
+        f.write(updated_rss)
+    print("✅ RSS updated with new episode.")
+
 
 def send_email_with_podcast(final_filename):
     yag = yagmail.SMTP(user=SENDER_EMAIL, password=APP_PASSWORD)
