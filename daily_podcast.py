@@ -305,11 +305,35 @@ from email.message import EmailMessage
 import smtplib
 import ssl
 
+
+def ensure_cover_image_from_pythonanywhere():
+    image_path = ensure_cover_image_from_pythonanywhere()
+    if os.path.exists(image_path):
+        return image_path
+
+    print("🖼️ Cover image not found locally. Downloading from PythonAnywhere...")
+
+    image_url = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/podcast-cover.png"
+    try:
+        response = requests.get(image_url)
+        if response.status_code == 200:
+            with open(image_path, "wb") as f:
+                f.write(response.content)
+            print("✅ Downloaded cover image from PythonAnywhere.")
+            return image_path
+        else:
+            print(f"❌ Failed to download cover image (status {response.status_code})")
+            return None
+    except Exception as e:
+        print(f"❌ Exception while downloading cover image: {e}")
+        return None
+
+
 def generate_youtube_video_safe(audio_path, date_str):
-    image_path = os.path.join(PODCAST_DIR, "podcast-cover.png")
+    image_path = ensure_cover_image_from_pythonanywhere()
     output_video = os.path.join(PODCAST_DIR, f"podcast_{date_str}.mp4")
 
-    if not os.path.exists(image_path):
+    if not image_path or not os.path.exists(image_path):
         print(f"⚠️ Cover image not found: {image_path}. Skipping video.")
         return None
 
