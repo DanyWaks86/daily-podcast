@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
 PYTHONANYWHERE_USERNAME = os.environ.get("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.environ.get("PYTHONANYWHERE_API_TOKEN")
-OUTPUT_FILENAME = "articles-yesterday-test.txt"
+OUTPUT_FILENAME = "articles-yesterday-test2.txt"
 
 DOMAINS = [
     "ign.com", "kotaku.com", "polygon.com", "eurogamer.net",
@@ -15,8 +15,8 @@ DOMAINS = [
 
 def fetch_articles():
     all_articles = []
-    from_time = (datetime.utcnow() - timedelta(hours=48)).isoformat(timespec="seconds") + "Z"
-    to_time = (datetime.utcnow() - timedelta(hours=24)).isoformat(timespec="seconds") + "Z"
+    from_time = (datetime.utcnow() - timedelta(hours=24)).isoformat(timespec="seconds") + "Z"
+    to_time = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     for domain in DOMAINS:
         url = (
             f"https://newsapi.org/v2/everything?"
