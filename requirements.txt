@@ -4,3 +4,4 @@ yagmail
 gtts
 openai
 paramiko
+mutagen
