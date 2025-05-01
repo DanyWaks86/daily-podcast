@@ -2,43 +2,55 @@ import os
 import requests
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
-import json
 
-# Config (make sure these env vars are set on Render)
+# === CONFIGURATION ===
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 OPENAI_PROJECT_ID = os.environ.get("OPENAI_PROJECT_ID")
 NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
 PYTHONANYWHERE_USERNAME = os.environ.get("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.environ.get("PYTHONANYWHERE_API_TOKEN")
 
-PODCAST_DIR = "/opt/render/project/src/podcast/"
 TODAY = "2025-05-01"
 OUTPUT_FILENAME = f"test_{TODAY}.txt"
 
-# 1. Fetch news
-def fetch_articles():
-    yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-    domains = ",".join([
-        "ign.com", "kotaku.com", "polygon.com", "eurogamer.net",
-        "gamerant.com", "gamesradar.com", "destructoid.com",
-        "pcgamer.com", "vg247.com", "gamesindustry.biz"
-    ])
-    url = (
-        f"https://newsapi.org/v2/everything?"
-        f"from={yesterday}&"
-        f"sortBy=publishedAt&"
-        f"language=en&"
-        f"pageSize=30&"
-        f"domains={domains}&"
-        f"apiKey={NEWSAPI_KEY}"
-    )
-    response = requests.get(url)
-    if response.status_code != 200:
-        print(f"❌ Failed to fetch articles: {response.text}")
-        return []
-    return response.json().get("articles", [])
+DOMAINS = [
+    "ign.com", "kotaku.com", "polygon.com", "eurogamer.net",
+    "gamerant.com", "gamesradar.com", "destructoid.com",
+    "pcgamer.com", "vg247.com", "gamesindustry.biz"
+]
 
-# 2. Group similar stories
+KEYWORDS = [
+    'layoffs', 'acquisition', 'merger', 'studio',
+    'sold', 'units sold', 'sales', 'player count',
+    'concurrent', 'review', 'metacritic', 'launch', 'released'
+]
+
+# === FUNCTIONS ===
+
+def fetch_articles_by_domain():
+    all_articles = []
+    yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    for domain in DOMAINS:
+        url = (
+            f"https://newsapi.org/v2/everything?"
+            f"from={yesterday}&"
+            f"sortBy=publishedAt&"
+            f"language=en&"
+            f"pageSize=10&"
+            f"domains={domain}&"
+            f"apiKey={NEWSAPI_KEY}"
+        )
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                articles = response.json().get("articles", [])
+                all_articles.extend(articles)
+            else:
+                print(f"❌ Failed to fetch from {domain}: {response.status_code}")
+        except Exception as e:
+            print(f"❌ Exception fetching {domain}: {e}")
+    return all_articles
+
 def group_articles(articles, threshold=0.5):
     groups = []
     used = set()
@@ -56,9 +68,15 @@ def group_articles(articles, threshold=0.5):
                 used.add(j)
         used.add(i)
         groups.append(group)
-    return sorted(groups, key=lambda g: len(g), reverse=True)[:6]
+    return groups
 
-# 3. Generate GPT script
+def score_group(group):
+    text = " ".join(
+        (a.get("title", "") + " " + a.get("description", "")).lower()
+        for a in group
+    )
+    return sum(1 for kw in KEYWORDS if kw in text)
+
 def generate_script(groups):
     articles_text = ""
     for group in groups:
@@ -94,37 +112,42 @@ Here are the real articles:
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7
     }
-    r = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-    return r.json()["choices"][0]["message"]["content"]
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
 
-# 4. Push output to PythonAnywhere
 def push_to_pythonanywhere(content):
-    print("📤 Uploading to PythonAnywhere...")
     headers = {
         "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
     }
     upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{OUTPUT_FILENAME}"
-
     response = requests.post(upload_url, headers=headers, files={"content": content.encode("utf-8")})
+    print(f"📡 Upload response [{response.status_code}]: {response.text}")
     if response.status_code == 200:
         print("✅ Upload successful.")
     else:
-        print(f"❌ Upload failed: {response.text}")
+        print("⚠️ Upload may have issues.")
 
-# === RUN ===
-print("🔎 Fetching articles...")
-articles = fetch_articles()
-if not articles:
-    print("No articles retrieved.")
-    exit()
+# === MAIN SCRIPT ===
+def main():
+    print("📥 Fetching gaming articles...")
+    articles = fetch_articles_by_domain()
+    print(f"✅ Retrieved {len(articles)} articles.")
 
-print("🔗 Grouping articles...")
-groups = group_articles(articles)
+    print("🔗 Grouping by similar titles...")
+    grouped = group_articles(articles)
+    print(f"✅ Formed {len(grouped)} topic clusters.")
 
-print("🧠 Generating script with GPT...")
-script = generate_script(groups)
+    print("📊 Scoring topics by keyword relevance...")
+    top_groups = sorted(grouped, key=score_group, reverse=True)[:6]
 
-print("📝 Uploading test file...")
-push_to_pythonanywhere(script)
+    print("🧠 Generating GPT script...")
+    script = generate_script(top_groups)
 
-print("✅ Test complete.")
+    print("📤 Uploading script to PythonAnywhere...")
+    push_to_pythonanywhere(script)
+
+    print("✅ Done!")
+
+if __name__ == "__main__":
+    main()
