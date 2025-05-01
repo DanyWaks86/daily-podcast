@@ -1,5 +1,16 @@
-def regenerate_rss_from_existing_files():
-    print("🔄 Regenerating RSS from available files...")
+import os
+import requests
+from datetime import datetime
+
+PODCAST_DIR = "/opt/render/project/src/podcast/"
+USERNAME = os.environ.get("PYTHONANYWHERE_USERNAME")
+TOKEN = os.environ.get("PYTHONANYWHERE_API_TOKEN")
+BASE_URL = f"https://{USERNAME}.pythonanywhere.com/Podcast/"
+RSS_FILENAME = "rss.xml"
+MAX_EPISODES = 14
+
+def regenerate_rss():
+    print("🔄 Regenerating RSS from existing MP3 files...")
     files = sorted(
         [f for f in os.listdir(PODCAST_DIR) if f.startswith("final_podcast_") and f.endswith(".mp3")],
         reverse=True
@@ -34,6 +45,25 @@ def regenerate_rss_from_existing_files():
   </channel>
 </rss>"""
 
-    with open(os.path.join(PODCAST_DIR, RSS_FILENAME), "w", encoding="utf-8") as f:
+    rss_path = os.path.join(PODCAST_DIR, RSS_FILENAME)
+    with open(rss_path, "w", encoding="utf-8") as f:
         f.write(rss_feed)
-    print("✅ RSS regenerated with all recent episodes.")
+    print("✅ RSS file regenerated.")
+
+def upload_rss_to_pythonanywhere():
+    print("🚀 Uploading RSS to PythonAnywhere...")
+    headers = {
+        "Authorization": f"Token {TOKEN}"
+    }
+    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{USERNAME}/files/path/home/{USERNAME}/Podcast/{RSS_FILENAME}"
+
+    with open(os.path.join(PODCAST_DIR, RSS_FILENAME), "rb") as f:
+        response = requests.post(upload_url, headers=headers, files={"content": f})
+        if response.status_code == 200:
+            print("✅ Successfully uploaded RSS to PythonAnywhere.")
+        else:
+            print(f"❌ Upload failed: {response.text}")
+
+if __name__ == "__main__":
+    regenerate_rss()
+    upload_rss_to_pythonanywhere()
