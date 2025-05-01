@@ -10,8 +10,7 @@ NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
 PYTHONANYWHERE_USERNAME = os.environ.get("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.environ.get("PYTHONANYWHERE_API_TOKEN")
 
-TODAY = "2025-05-01"
-OUTPUT_FILENAME = f"test_{TODAY}.txt"
+OUTPUT_FILENAME = "test.txt"
 
 DOMAINS = [
     "ign.com", "kotaku.com", "polygon.com", "eurogamer.net",
@@ -58,11 +57,11 @@ def group_articles(articles, threshold=0.5):
         if i in used:
             continue
         group = [a1]
-        title1 = a1.get("title", "").lower()
+        title1 = str(a1.get("title", "")).lower()
         for j, a2 in enumerate(articles[i+1:], start=i+1):
             if j in used:
                 continue
-            title2 = a2.get("title", "").lower()
+            title2 = str(a2.get("title", "")).lower()
             if SequenceMatcher(None, title1, title2).ratio() > threshold:
                 group.append(a2)
                 used.add(j)
@@ -72,7 +71,7 @@ def group_articles(articles, threshold=0.5):
 
 def score_group(group):
     text = " ".join(
-        (a.get("title", "") + " " + a.get("description", "")).lower()
+        (str(a.get("title", "")) + " " + str(a.get("description", ""))).lower()
         for a in group
     )
     return sum(1 for kw in KEYWORDS if kw in text)
@@ -81,7 +80,7 @@ def generate_script(groups):
     articles_text = ""
     for group in groups:
         top = group[0]
-        articles_text += f"Title: {top['title']}\nSummary: {top['description']}\nSource: {top['source']['name']}\nLink: {top['url']}\n\n"
+        articles_text += f"Title: {top['title']}\nSummary: {top.get('description', '')}\nSource: {top['source']['name']}\nLink: {top['url']}\n\n"
 
     prompt = f"""You are generating a daily podcast script based on real gaming news articles. Follow these rules carefully:
 
@@ -144,7 +143,7 @@ def main():
     print("🧠 Generating GPT script...")
     script = generate_script(top_groups)
 
-    print("📤 Uploading script to PythonAnywhere...")
+    print("📤 Uploading script to PythonAnywhere as 'test.txt'...")
     push_to_pythonanywhere(script)
 
     print("✅ Done!")
