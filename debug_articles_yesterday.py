@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
 PYTHONANYWHERE_USERNAME = os.environ.get("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.environ.get("PYTHONANYWHERE_API_TOKEN")
-OUTPUT_FILENAME = "articles-yesterday.txt"
+OUTPUT_FILENAME = "articles-yesterday-test.txt"
 
 DOMAINS = [
     "ign.com", "kotaku.com", "polygon.com", "eurogamer.net",
