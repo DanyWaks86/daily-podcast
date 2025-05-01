@@ -219,7 +219,7 @@ def update_rss():
     </item>
     """
 
-    # ✅ Append if today's episode isn't already in the RSS
+    # 🧱 Update or create RSS feed
     if os.path.exists(rss_path):
         with open(rss_path, "r", encoding="utf-8") as f:
             rss_content = f.read()
@@ -229,21 +229,37 @@ def update_rss():
         updated_rss = rss_content.replace("</channel>", f"{new_item}\n  </channel>")
     else:
         print("🆕 Creating new rss.xml from scratch.")
-        updated_rss = f"""<?xml version="1.0" encoding="UTF-8" ?>
-<rss version="2.0">
+        updated_rss = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+  xmlns:atom="http://www.w3.org/2005/Atom"
+  xmlns:podcast="https://podcastindex.org/namespace/1.0">
   <channel>
     <title>Daily Video Games Digest</title>
     <link>{BASE_URL}</link>
-    <description>Daily video game news podcast, summarized and delivered by Dany Waksman.</description>
     <language>en-us</language>
-    <ttl>1440</ttl>
+    <description>Daily video game news podcast, summarized and delivered by Dany Waksman.</description>
+
+    <atom:link href="{BASE_URL}rss.xml" rel="self" type="application/rss+xml"/>
+    <itunes:author>Dany Waksman</itunes:author>
+    <itunes:summary>Your AI-generated source for daily video game news, highlights, and analysis.</itunes:summary>
+    <itunes:explicit>no</itunes:explicit>
+    <itunes:image href="{BASE_URL}podcast-cover.png"/>
+    <itunes:category text="Technology">
+      <itunes:category text="Podcasting"/>
+    </itunes:category>
+    <itunes:category text="Leisure">
+      <itunes:category text="Video Games"/>
+    </itunes:category>
+
 {new_item}
   </channel>
 </rss>"""
 
     with open(rss_path, "w", encoding="utf-8") as f:
         f.write(updated_rss)
-    print("✅ RSS updated with new episode.")
+    print("✅ RSS updated with new episode and Apple-compliant metadata.")
+
 
 
 
