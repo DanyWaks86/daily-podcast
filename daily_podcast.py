@@ -203,7 +203,7 @@ def update_rss():
     <item>
       <title>{datetime.now().strftime('%B %d')} - Gaming News Digest</title>
       <link>{BASE_URL}podcast_{today_date}.html</link>
-      <description><![CDATA[Gaming news highlights summarized by Dany Waksman. Full articles at: {BASE_URL}final_podcast_{today_date}.mp3]]></description>
+      <description><![CDATA[Gaming news highlights summarized by Dany Waksman. Read the show notes: {BASE_URL}podcast_{today_date}.html]]></description>
       <enclosure url="{BASE_URL}final_podcast_{today_date}.mp3" length="5000000" type="audio/mpeg" />
       <guid>{today_date}</guid>
       <pubDate>{pub_date_formatted}</pubDate>
