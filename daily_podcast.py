@@ -8,6 +8,8 @@ import yagmail
 from email.message import EmailMessage
 import smtplib
 import ssl
+from mutagen.easyid3 import EasyID3
+from mutagen.mp3 import MP3
 
 # === CONFIGURATION ===
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
@@ -29,6 +31,17 @@ RSS_FILENAME = "rss.xml"
 MAX_EPISODES = 14
 
 TODAY = datetime.now().strftime('%Y-%m-%d')
+
+def add_id3_tags(mp3_path, date_str):
+    try:
+        audio = MP3(mp3_path, ID3=EasyID3)
+        audio["title"] = f"Gaming News Digest - {date_str}"
+        audio["artist"] = "Dany Waksman"
+        audio["album"] = "Daily Video Games Digest"
+        audio.save()
+        print(f"✅ ID3 tags added to {mp3_path}")
+    except Exception as e:
+        print(f"❌ Failed to add ID3 tags: {e}")
 
 def fetch_gaming_news():
     yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
@@ -192,7 +205,6 @@ def update_rss():
     today_date = datetime.now().strftime('%Y-%m-%d')
     pub_date_formatted = datetime.now().strftime('%a, %d %b %Y 06:00:00 GMT')
 
-    # 🔄 Fetch latest RSS from PythonAnywhere first
     print("📥 Fetching latest rss.xml from PythonAnywhere...")
     headers = {
         "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
@@ -207,7 +219,6 @@ def update_rss():
     else:
         print(f"⚠️ Could not fetch existing rss.xml (status {rss_response.status_code}), will create new one.")
 
-    # 📦 Prepare today's episode item
     new_item = f"""
     <item>
       <title>{datetime.now().strftime('%B %d')} - Gaming News Digest</title>
@@ -216,10 +227,8 @@ def update_rss():
       <enclosure url="{BASE_URL}final_podcast_{today_date}.mp3" length="5000000" type="audio/mpeg" />
       <guid>{today_date}</guid>
       <pubDate>{pub_date_formatted}</pubDate>
-    </item>
-    """
+    </item>"""
 
-    # 🧱 Update or create RSS feed
     if os.path.exists(rss_path):
         with open(rss_path, "r", encoding="utf-8") as f:
             rss_content = f.read()
@@ -239,15 +248,16 @@ def update_rss():
     <link>{BASE_URL}</link>
     <language>en-us</language>
     <description>Daily video game news podcast, summarized and delivered by Dany Waksman.</description>
+    <ttl>1440</ttl>
 
     <atom:link href="{BASE_URL}rss.xml" rel="self" type="application/rss+xml"/>
     <itunes:author>Dany Waksman</itunes:author>
     <itunes:summary>Your AI-generated source for daily video game news, highlights, and analysis.</itunes:summary>
     <itunes:explicit>no</itunes:explicit>
+    <podcast:locked>yes</podcast:locked>
+
     <itunes:image href="{BASE_URL}podcast-cover.png"/>
-    <itunes:category text="Technology">
-      <itunes:category text="Podcasting"/>
-    </itunes:category>
+    <itunes:category text="Technology"/>
     <itunes:category text="Leisure">
       <itunes:category text="Video Games"/>
     </itunes:category>
@@ -258,10 +268,7 @@ def update_rss():
 
     with open(rss_path, "w", encoding="utf-8") as f:
         f.write(updated_rss)
-    print("✅ RSS updated with new episode and Apple-compliant metadata.")
-
-
-
+    print("✅ RSS updated with new episode and full Apple compliance.")
 
 def send_email_with_podcast(final_filename):
     yag = yagmail.SMTP(user=SENDER_EMAIL, password=APP_PASSWORD)
@@ -389,6 +396,7 @@ print("✅ Audio data received!")
 
 os.makedirs(PODCAST_DIR, exist_ok=True)
 final_filename = save_audio_with_intro_outro(audio_data, TODAY)
+add_id3_tags(final_filename, TODAY)
 
 print("📝 Generating show notes page...")
 generate_show_notes(articles_used, TODAY)
