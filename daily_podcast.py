@@ -5,6 +5,9 @@ import subprocess
 from datetime import datetime, timedelta
 from pydub import AudioSegment
 import yagmail
+from email.message import EmailMessage
+import smtplib
+import ssl
 
 # === CONFIGURATION ===
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
@@ -165,11 +168,17 @@ def generate_show_notes(articles, date_str):
 
     html_content += f"""
     </ul>
-    <h2>🎧 Listen to the episode:</h2>
-    <audio controls>
-        <source src=\"{BASE_URL}final_podcast_{date_str}.mp3\" type=\"audio/mpeg\">
-        Your browser does not support the audio element.
-    </audio>
+<h2>🎧 Listen to the episode:</h2>
+<audio controls>
+    <source src="{BASE_URL}final_podcast_{date_str}.mp3" type="audio/mpeg">
+    Your browser does not support the audio element.
+</audio>
+
+<h2>🎬 Watch on YouTube-style format:</h2>
+<a href="{BASE_URL}podcast_{date_str}.mp4" target="_blank">
+    <img src="{BASE_URL}podcast-cover.png" alt="Podcast Video Thumbnail" style="max-width:100%; margin-top:10px; border: 1px solid #ccc; box-shadow: 2px 2px 6px rgba(0,0,0,0.1);">
+</a>
+
     <footer>
         <p>Subscribe on your favorite platform: Apple Podcasts, Spotify, Amazon Music.</p>
     </footer>
@@ -269,6 +278,78 @@ def push_to_pythonanywhere_api():
             else:
                 print(f"✅ Uploaded {filename} to PythonAnywhere.")
 
+from email.message import EmailMessage
+import smtplib
+import ssl
+
+def generate_youtube_video_safe(audio_path, date_str):
+    image_path = os.path.join(PODCAST_DIR, "podcast-cover.png")
+    output_video = os.path.join(PODCAST_DIR, f"podcast_{date_str}.mp4")
+
+    if not os.path.exists(image_path):
+        print(f"⚠️ Cover image not found: {image_path}. Skipping video.")
+        return None
+
+    command = [
+        "ffmpeg", "-y",
+        "-loop", "1",
+        "-i", image_path,
+        "-i", audio_path,
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-tune", "stillimage",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-shortest",
+        "-movflags", "+faststart",
+        output_video
+    ]
+
+    try:
+        subprocess.run(command, check=True)
+        print(f"✅ Video created: {output_video}")
+        return output_video
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to generate video: {e}")
+        return None
+
+def email_video_file(video_path, date_str):
+    if not os.path.exists(video_path):
+        print(f"⚠️ Video not found: {video_path}. Skipping email.")
+        return
+
+    msg = EmailMessage()
+    msg["Subject"] = f"🎥 Daily Video Games Digest Video – {date_str}"
+    msg["From"] = SENDER_EMAIL
+    msg["To"] = RECIPIENT_EMAIL
+    msg.set_content(f"Here’s your video podcast for {date_str}!")
+
+    with open(video_path, "rb") as f:
+        msg.add_attachment(f.read(), maintype="video", subtype="mp4", filename=os.path.basename(video_path))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context()) as server:
+            server.login(SENDER_EMAIL, APP_PASSWORD)
+            server.send_message(msg)
+        print("✅ Video emailed successfully.")
+    except Exception as e:
+        print(f"❌ Failed to send video email: {e}")
+
+def push_video_to_pythonanywhere(video_path):
+    headers = {
+        "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
+    }
+    filename = os.path.basename(video_path)
+    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{filename}"
+
+    with open(video_path, "rb") as f:
+        response = requests.post(upload_url, headers=headers, files={"content": f})
+        if response.status_code == 200:
+            print(f"✅ Video uploaded: {filename}")
+        else:
+            print(f"❌ Failed to upload video: {response.text}")
+
+
 # === MAIN PROCESS ===
 print("📰 Fetching gaming articles...")
 articles = fetch_gaming_news()
@@ -304,5 +385,13 @@ update_rss()
 
 print("🚀 Pushing podcast folder to PythonAnywhere...")
 push_to_pythonanywhere_api()
+
+print("🎞️ Generating video...")
+video_path = generate_youtube_video_safe(final_filename, TODAY)
+if video_path:
+    print("📤 Uploading video to PythonAnywhere...")
+    push_video_to_pythonanywhere(video_path)
+    print("📧 Sending video by email...")
+    email_video_file(video_path, TODAY)
 
 print("✅ Done!")
