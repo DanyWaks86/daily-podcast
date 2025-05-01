@@ -183,6 +183,22 @@ def update_rss():
     today_date = datetime.now().strftime('%Y-%m-%d')
     pub_date_formatted = datetime.now().strftime('%a, %d %b %Y 06:00:00 GMT')
 
+    # 🔄 Fetch latest RSS from PythonAnywhere first
+    print("📥 Fetching latest rss.xml from PythonAnywhere...")
+    headers = {
+        "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
+    }
+    rss_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/rss.xml"
+    rss_response = requests.get(rss_url, headers=headers)
+
+    if rss_response.status_code == 200:
+        with open(rss_path, "w", encoding="utf-8") as f:
+            f.write(rss_response.text)
+        print("✅ Fetched and saved existing rss.xml")
+    else:
+        print(f"⚠️ Could not fetch existing rss.xml (status {rss_response.status_code}), will create new one.")
+
+    # 📦 Prepare today's episode item
     new_item = f"""
     <item>
       <title>{datetime.now().strftime('%B %d')} - Gaming News Digest</title>
@@ -194,6 +210,7 @@ def update_rss():
     </item>
     """
 
+    # ✅ Append if today's episode isn't already in the RSS
     if os.path.exists(rss_path):
         with open(rss_path, "r", encoding="utf-8") as f:
             rss_content = f.read()
@@ -202,7 +219,7 @@ def update_rss():
             return
         updated_rss = rss_content.replace("</channel>", f"{new_item}\n  </channel>")
     else:
-        # RSS template if file doesn't exist
+        print("🆕 Creating new rss.xml from scratch.")
         updated_rss = f"""<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0">
   <channel>
@@ -218,6 +235,7 @@ def update_rss():
     with open(rss_path, "w", encoding="utf-8") as f:
         f.write(updated_rss)
     print("✅ RSS updated with new episode.")
+
 
 
 def send_email_with_podcast(final_filename):
