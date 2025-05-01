@@ -10,7 +10,7 @@ NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
 PYTHONANYWHERE_USERNAME = os.environ.get("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.environ.get("PYTHONANYWHERE_API_TOKEN")
 
-OUTPUT_FILENAME = "test.txt"
+OUTPUT_FILENAME = "test-text.txt"
 
 DOMAINS = [
     "ign.com", "kotaku.com", "polygon.com", "eurogamer.net",
@@ -28,11 +28,12 @@ KEYWORDS = [
 
 def fetch_articles_by_domain():
     all_articles = []
-    yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    from_time = (datetime.utcnow() - timedelta(hours=24)).isoformat(timespec="seconds") + "Z"
+    to_time = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     for domain in DOMAINS:
         url = (
             f"https://newsapi.org/v2/everything?"
-            f"from={yesterday}&"
+            f"from={from_time}&to={to_time}&"
             f"sortBy=publishedAt&"
             f"language=en&"
             f"pageSize=10&"
@@ -129,7 +130,7 @@ def push_to_pythonanywhere(content):
 
 # === MAIN SCRIPT ===
 def main():
-    print("📥 Fetching gaming articles...")
+    print("📥 Fetching gaming articles from the last 24 hours...")
     articles = fetch_articles_by_domain()
     print(f"✅ Retrieved {len(articles)} articles.")
 
@@ -143,7 +144,7 @@ def main():
     print("🧠 Generating GPT script...")
     script = generate_script(top_groups)
 
-    print("📤 Uploading script to PythonAnywhere as 'test.txt'...")
+    print("📤 Uploading script to PythonAnywhere as 'test-text.txt'...")
     push_to_pythonanywhere(script)
 
     print("✅ Done!")
