@@ -180,19 +180,8 @@ def generate_show_notes(articles, date_str):
 
 def update_rss():
     rss_path = os.path.join(PODCAST_DIR, RSS_FILENAME)
-    if not os.path.exists(rss_path):
-        print("❌ RSS file not found.")
-        return
-
-    with open(rss_path, "r", encoding="utf-8") as f:
-        rss_content = f.read()
-
     today_date = datetime.now().strftime('%Y-%m-%d')
     pub_date_formatted = datetime.now().strftime('%a, %d %b %Y 06:00:00 GMT')
-
-    if today_date in rss_content:
-        print("✅ Today's episode already in RSS.")
-        return
 
     new_item = f"""
     <item>
@@ -205,7 +194,26 @@ def update_rss():
     </item>
     """
 
-    updated_rss = rss_content.replace("</channel>", f"{new_item}\n  </channel>")
+    if os.path.exists(rss_path):
+        with open(rss_path, "r", encoding="utf-8") as f:
+            rss_content = f.read()
+        if today_date in rss_content:
+            print("✅ Today's episode already in RSS.")
+            return
+        updated_rss = rss_content.replace("</channel>", f"{new_item}\n  </channel>")
+    else:
+        # RSS template if file doesn't exist
+        updated_rss = f"""<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+  <channel>
+    <title>Daily Video Games Digest</title>
+    <link>{BASE_URL}</link>
+    <description>Daily video game news podcast, summarized and delivered by Dany Waksman.</description>
+    <language>en-us</language>
+    <ttl>1440</ttl>
+{new_item}
+  </channel>
+</rss>"""
 
     with open(rss_path, "w", encoding="utf-8") as f:
         f.write(updated_rss)
