@@ -154,16 +154,22 @@ def text_to_speech(text):
     }
     payload = {
         "text": text,
+        "model_id": "eleven_multilingual_v2",  # <-- Explicitly use the new model
         "voice_settings": {
             "stability": 0.4,
-            "similarity_boost": 0.75
-        }
+            "similarity_boost": 1.0,
+            "style": 0.0,
+            "use_speaker_boost": True  # <-- Critical for fidelity
+        },
+        "output_format": "wav"
     }
+
     response = requests.post(url, headers=headers, json=payload)
     if response.status_code != 200:
         print("❌ ElevenLabs TTS Error:", response.text)
         return None
     return response.content
+
 
 def save_audio_with_intro_outro(audio_data, filename_base):
     raw_voice_path = os.path.join(PODCAST_DIR, "voice_raw.mp3")
