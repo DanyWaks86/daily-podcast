@@ -353,7 +353,7 @@ import ssl
 
 
 def ensure_cover_image_from_pythonanywhere():
-    image_path = ensure_cover_image_from_pythonanywhere()
+    image_path = os.path.join(PODCAST_DIR, "podcast-cover.png")
     if os.path.exists(image_path):
         return image_path
 
