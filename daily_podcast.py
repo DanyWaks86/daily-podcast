@@ -381,38 +381,6 @@ def ensure_cover_image_from_pythonanywhere():
         print(f"❌ Exception while downloading cover image: {e}")
         return None
 
-
-def generate_youtube_video_safe(audio_path, date_str):
-    image_path = ensure_cover_image_from_pythonanywhere()
-    output_video = os.path.join(PODCAST_DIR, f"podcast_{date_str}.mp4")
-
-    if not image_path or not os.path.exists(image_path):
-        print(f"⚠️ Cover image not found: {image_path}. Skipping video.")
-        return None
-
-    command = [
-        "ffmpeg", "-y",
-        "-loop", "1",
-        "-i", image_path,
-        "-i", audio_path,
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-tune", "stillimage",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        "-shortest",
-        "-movflags", "+faststart",
-        output_video
-    ]
-
-    try:
-        subprocess.run(command, check=True)
-        print(f"✅ Video created: {output_video}")
-        return output_video
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to generate video: {e}")
-        return None
-
 def email_video_file(video_path, date_str):
     if not os.path.exists(video_path):
         print(f"⚠️ Video not found: {video_path}. Skipping email.")
