@@ -17,9 +17,15 @@ def fetch_articles():
     all_articles = []
     from_time = (datetime.utcnow() - timedelta(hours=48)).isoformat(timespec="seconds") + "Z"
     to_time = (datetime.utcnow() - timedelta(hours=24)).isoformat(timespec="seconds") + "Z"
+    query = (
+        "video game OR gaming OR game review OR new game OR "
+        "player count OR sales OR launch OR metacritic OR "
+        "studio OR publisher OR fps OR rpg OR mmorpg"
+    )
     for domain in DOMAINS:
         url = (
             f"https://newsapi.org/v2/everything?"
+            f"q={requests.utils.quote(query)}&"
             f"from={from_time}&to={to_time}&"
             f"sortBy=publishedAt&"
             f"language=en&"
@@ -34,9 +40,12 @@ def fetch_articles():
                 for art in articles:
                     art["source_domain"] = domain
                 all_articles.extend(articles)
+            else:
+                print(f"❌ Error fetching from {domain}: {response.status_code} {response.text}")
         except Exception as e:
-            print(f"❌ Failed fetching from {domain}: {e}")
+            print(f"❌ Exception fetching from {domain}: {e}")
     return all_articles
+
 
 def format_article_list(articles):
     lines = [f"Total articles: {len(articles)}\n"]
