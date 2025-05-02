@@ -44,30 +44,75 @@ def add_id3_tags(mp3_path, date_str):
         print(f"❌ Failed to add ID3 tags: {e}")
 
 def fetch_gaming_news():
-    yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-    url = (
-        f"https://newsapi.org/v2/everything?"
-        f"from={yesterday}&"
-        f"sortBy=popularity&"
-        f"language=en&"
-        f"pageSize=15&"
-        f"domains=ign.com,kotaku.com,polygon.com,eurogamer.net,gamesradar.com,gamesindustry.biz&"
-        f"apiKey={NEWSAPI_KEY}"
+    all_articles = []
+    from_time = (datetime.utcnow() - timedelta(hours=48)).isoformat(timespec="seconds") + "Z"
+    to_time = (datetime.utcnow() - timedelta(hours=24)).isoformat(timespec="seconds") + "Z"
+    domains = [
+        "ign.com", "kotaku.com", "polygon.com", "eurogamer.net",
+        "gamerant.com", "gamesradar.com", "destructoid.com",
+        "pcgamer.com", "vg247.com", "gamesindustry.biz"
+    ]
+    for domain in domains:
+        url = (
+            f"https://newsapi.org/v2/everything?"
+            f"from={from_time}&to={to_time}&"
+            f"sortBy=publishedAt&"
+            f"language=en&"
+            f"pageSize=10&"
+            f"domains={domain}&"
+            f"apiKey={NEWSAPI_KEY}"
+        )
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                articles = response.json().get("articles", [])
+                all_articles.extend(articles)
+        except Exception as e:
+            print(f"❌ Failed to fetch from {domain}: {e}")
+    return all_articles
+
+
+def group_articles(articles, threshold=0.5):
+    groups = []
+    used = set()
+    for i, a1 in enumerate(articles):
+        if i in used:
+            continue
+        group = [a1]
+        title1 = str(a1.get("title", "")).lower()
+        for j, a2 in enumerate(articles[i+1:], start=i+1):
+            if j in used:
+                continue
+            title2 = str(a2.get("title", "")).lower()
+            if SequenceMatcher(None, title1, title2).ratio() > threshold:
+                group.append(a2)
+                used.add(j)
+        used.add(i)
+        groups.append(group)
+    return groups
+
+
+def score_group(group):
+    keywords = [
+        'player count', 'active users', 'dau', 'concurrent', 'milestone', 'record', 'peak',
+        'layoffs', 'fired', 'closure', 'shut down', 'acquisition', 'revenue', 'sales', 'earnings',
+        'review', 'metacritic', 'ratings', 'launched', 'release', 'launch', 'post-launch', 'studio'
+    ]
+    text = " ".join(
+        (str(a.get("title", "")) + " " + str(a.get("description", ""))).lower()
+        for a in group
     )
-    response = requests.get(url)
-    if response.status_code != 200:
-        print(f"❌ Failed to fetch news: {response.text}")
-        return []
-    return response.json().get('articles', [])
+    return sum(1 for kw in keywords if kw in text)
+
 
 def generate_script(articles):
+    grouped = group_articles(articles)
+    top_groups = sorted(grouped, key=score_group, reverse=True)[:6]
+
     articles_text = ""
-    for article in articles:
-        title = article.get('title', '')
-        description = article.get('description', '')
-        source = article.get('source', {}).get('name', '')
-        link = article.get('url', '')
-        articles_text += f"Title: {title}\nSummary: {description}\nSource: {source}\nLink: {link}\n\n"
+    for group in top_groups:
+        top = group[0]
+        articles_text += f"Title: {top['title']}\nSummary: {top.get('description', '')}\nSource: {top['source']['name']}\nLink: {top['url']}\n\n"
 
     prompt = f"""You are generating a daily podcast script based on real gaming news articles. Follow these rules carefully:
 
@@ -88,6 +133,7 @@ Here are the real articles:
 
 {articles_text}
 """
+
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "OpenAI-Project": OPENAI_PROJECT_ID
@@ -98,7 +144,7 @@ Here are the real articles:
         "temperature": 0.7
     }
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
-    return response.json().get('choices', [{}])[0].get('message', {}).get('content', ''), articles
+    return response.json().get('choices', [{}])[0].get('message', {}).get('content', ''), [group[0] for group in top_groups]
 
 def text_to_speech(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
