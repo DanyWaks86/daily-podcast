@@ -5,3 +5,4 @@ gtts
 openai
 paramiko
 mutagen
+feedparser
