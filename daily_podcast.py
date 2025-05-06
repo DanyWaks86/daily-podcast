@@ -2,7 +2,7 @@ import os
 import io
 import requests
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from pydub import AudioSegment
 import yagmail
@@ -15,7 +15,6 @@ from mutagen.mp3 import MP3
 # === CONFIGURATION ===
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 OPENAI_PROJECT_ID = os.environ.get("OPENAI_PROJECT_ID")
-NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY")
 ELEVENLABS_VOICE_ID = "Av6SEi7Xo7fWEjACu6Pr"
 
@@ -44,77 +43,21 @@ def add_id3_tags(mp3_path, date_str):
     except Exception as e:
         print(f"❌ Failed to add ID3 tags: {e}")
 
-def fetch_gaming_news():
-    all_articles = []
-    from_time = (datetime.utcnow() - timedelta(hours=48)).isoformat(timespec="seconds") + "Z"
-    to_time = (datetime.utcnow() - timedelta(hours=24)).isoformat(timespec="seconds") + "Z"
-    domains = [
-        "ign.com", "kotaku.com", "polygon.com", "eurogamer.net",
-        "gamerant.com", "gamesradar.com", "destructoid.com",
-        "pcgamer.com", "vg247.com", "gamesindustry.biz"
-    ]
-    for domain in domains:
-        url = (
-            f"https://newsapi.org/v2/everything?"
-            f"from={from_time}&to={to_time}&"
-            f"sortBy=publishedAt&"
-            f"language=en&"
-            f"pageSize=10&"
-            f"domains={domain}&"
-            f"apiKey={NEWSAPI_KEY}"
-        )
-        try:
-            response = requests.get(url)
-            if response.status_code == 200:
-                articles = response.json().get("articles", [])
-                all_articles.extend(articles)
-        except Exception as e:
-            print(f"❌ Failed to fetch from {domain}: {e}")
-    return all_articles
+def fetch_rss_articles_txt():
+    print("📥 Fetching scored articles from PythonAnywhere...")
+    headers = {
+        "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
+    }
+    txt_filename = f"rss_articles_scored_{TODAY}.txt"
+    txt_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{txt_filename}"
+    response = requests.get(txt_url, headers=headers)
 
+    if response.status_code != 200:
+        print(f"❌ Failed to fetch RSS-scored articles: {response.text}")
+        return None
+    return response.text
 
-def group_articles(articles, threshold=0.5):
-    groups = []
-    used = set()
-    for i, a1 in enumerate(articles):
-        if i in used:
-            continue
-        group = [a1]
-        title1 = str(a1.get("title", "")).lower()
-        for j, a2 in enumerate(articles[i+1:], start=i+1):
-            if j in used:
-                continue
-            title2 = str(a2.get("title", "")).lower()
-            if SequenceMatcher(None, title1, title2).ratio() > threshold:
-                group.append(a2)
-                used.add(j)
-        used.add(i)
-        groups.append(group)
-    return groups
-
-
-def score_group(group):
-    keywords = [
-        'player count', 'active users', 'dau', 'concurrent', 'milestone', 'record', 'peak',
-        'layoffs', 'fired', 'closure', 'shut down', 'acquisition', 'revenue', 'sales', 'earnings',
-        'review', 'metacritic', 'ratings', 'launched', 'release', 'launch', 'post-launch', 'studio'
-    ]
-    text = " ".join(
-        (str(a.get("title", "")) + " " + str(a.get("description", ""))).lower()
-        for a in group
-    )
-    return sum(1 for kw in keywords if kw in text)
-
-
-def generate_script(articles):
-    grouped = group_articles(articles)
-    top_groups = sorted(grouped, key=score_group, reverse=True)[:6]
-
-    articles_text = ""
-    for group in top_groups:
-        top = group[0]
-        articles_text += f"Title: {top['title']}\nSummary: {top.get('description', '')}\nSource: {top['source']['name']}\nLink: {top['url']}\n\n"
-
+def generate_script_from_text(rss_text):
     prompt = f"""You are generating a daily podcast script based on real gaming news articles. Follow these rules carefully:
 
 1. Carefully read the articles provided.
@@ -132,9 +75,8 @@ End the podcast script with this exact outro:
 
 Here are the real articles:
 
-{articles_text}
+{rss_text}
 """
-
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "OpenAI-Project": OPENAI_PROJECT_ID
@@ -145,7 +87,7 @@ Here are the real articles:
         "temperature": 0.7
     }
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
-    return response.json().get('choices', [{}])[0].get('message', {}).get('content', ''), [group[0] for group in top_groups]
+    return response.json().get('choices', [{}])[0].get('message', {}).get('content', ''), None
 
 def text_to_speech(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
@@ -170,7 +112,6 @@ def text_to_speech(text):
         print("❌ ElevenLabs TTS Error:", response.text)
         return None
     return response.content
-
 
 def save_audio_with_intro_outro(audio_data, filename_base):
     raw_voice_path = os.path.join(PODCAST_DIR, "voice_raw.mp3")
@@ -208,7 +149,7 @@ def save_audio_with_intro_outro(audio_data, filename_base):
     return final_filename
 
 
-def generate_show_notes(articles, date_str):
+def generate_show_notes(rss_text, date_str):
     html_content = f"""<!DOCTYPE html>
 <html lang='en'>
 <head>
@@ -217,33 +158,20 @@ def generate_show_notes(articles, date_str):
     <style>
         body {{ font-family: Arial, sans-serif; max-width: 700px; margin: auto; padding: 20px; }}
         h1 {{ color: #333; }}
-        ul {{ line-height: 1.6; }}
+        pre {{ background: #f4f4f4; padding: 10px; border: 1px solid #ccc; white-space: pre-wrap; }}
         footer {{ margin-top: 40px; font-size: 0.9em; color: #666; }}
     </style>
 </head>
 <body>
     <h1>Daily Video Games Digest – {date_str}</h1>
-    <p>Welcome to today's episode! Here are the articles we talked about:</p>
-    <ul>
-"""
-    for article in articles:
-        title = article.get('title', 'No title')
-        link = article.get('url', '#')
-        source = article.get('source', {}).get('name', 'Unknown')
-        html_content += f"        <li><a href=\"{link}\">{title}</a> – Source: {source}</li>\n"
+    <p>Below are the articles that were summarized in today’s episode:</p>
+    <pre>{rss_text}</pre>
 
-    html_content += f"""
-    </ul>
-<h2>🎧 Listen to the episode:</h2>
-<audio controls>
-    <source src="{BASE_URL}final_podcast_{date_str}.mp3" type="audio/mpeg">
-    Your browser does not support the audio element.
-</audio>
-
-<h2>🎬 Watch on YouTube-style format:</h2>
-<a href="{BASE_URL}podcast_{date_str}.mp4" target="_blank">
-    <img src="{BASE_URL}podcast-cover.png" alt="Podcast Video Thumbnail" style="max-width:100%; margin-top:10px; border: 1px solid #ccc; box-shadow: 2px 2px 6px rgba(0,0,0,0.1);">
-</a>
+    <h2>🎧 Listen to the episode:</h2>
+    <audio controls>
+        <source src="{BASE_URL}final_podcast_{date_str}.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
 
     <footer>
         <p>Subscribe on your favorite platform: Apple Podcasts, Spotify, Amazon Music.</p>
@@ -252,6 +180,7 @@ def generate_show_notes(articles, date_str):
 </html>"""
     with open(os.path.join(PODCAST_DIR, f"podcast_{date_str}.html"), "w") as f:
         f.write(html_content)
+
 
 def update_rss():
     rss_path = os.path.join(PODCAST_DIR, RSS_FILENAME)
@@ -344,7 +273,6 @@ def push_to_pythonanywhere_api():
         f"podcast_{TODAY}.html",
         "breaking-news-intro-logo-314320.mp3",
         "rss.xml",
-        "test.txt",
     ]:
         local_path = os.path.join(PODCAST_DIR, filename)
         with open(local_path, "rb") as f:
@@ -354,80 +282,14 @@ def push_to_pythonanywhere_api():
             else:
                 print(f"✅ Uploaded {filename} to PythonAnywhere.")
 
-from email.message import EmailMessage
-import smtplib
-import ssl
-
-
-def ensure_cover_image_from_pythonanywhere():
-    image_path = os.path.join(PODCAST_DIR, "podcast-cover.png")
-    if os.path.exists(image_path):
-        return image_path
-
-    print("🖼️ Cover image not found locally. Downloading from PythonAnywhere...")
-
-    image_url = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/podcast-cover.png"
-    try:
-        response = requests.get(image_url)
-        if response.status_code == 200:
-            with open(image_path, "wb") as f:
-                f.write(response.content)
-            print("✅ Downloaded cover image from PythonAnywhere.")
-            return image_path
-        else:
-            print(f"❌ Failed to download cover image (status {response.status_code})")
-            return None
-    except Exception as e:
-        print(f"❌ Exception while downloading cover image: {e}")
-        return None
-
-def email_video_file(video_path, date_str):
-    if not os.path.exists(video_path):
-        print(f"⚠️ Video not found: {video_path}. Skipping email.")
-        return
-
-    msg = EmailMessage()
-    msg["Subject"] = f"🎥 Daily Video Games Digest Video – {date_str}"
-    msg["From"] = SENDER_EMAIL
-    msg["To"] = RECIPIENT_EMAIL
-    msg.set_content(f"Here’s your video podcast for {date_str}!")
-
-    with open(video_path, "rb") as f:
-        msg.add_attachment(f.read(), maintype="video", subtype="mp4", filename=os.path.basename(video_path))
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context()) as server:
-            server.login(SENDER_EMAIL, APP_PASSWORD)
-            server.send_message(msg)
-        print("✅ Video emailed successfully.")
-    except Exception as e:
-        print(f"❌ Failed to send video email: {e}")
-
-def push_video_to_pythonanywhere(video_path):
-    headers = {
-        "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
-    }
-    filename = os.path.basename(video_path)
-    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{filename}"
-
-    with open(video_path, "rb") as f:
-        response = requests.post(upload_url, headers=headers, files={"content": f})
-        if response.status_code == 200:
-            print(f"✅ Video uploaded: {filename}")
-        else:
-            print(f"❌ Failed to upload video: {response.text}")
-
-
 # === MAIN PROCESS ===
-print("📰 Fetching gaming articles...")
-articles = fetch_gaming_news()
-if not articles:
-    print("❌ No articles found.")
+rss_text = fetch_rss_articles_txt()
+if not rss_text:
+    print("❌ No RSS article text found.")
     exit()
-print(f"✅ Fetched {len(articles)} articles.")
 
 print("🧠 Generating podcast script...")
-script, articles_used = generate_script(articles)
+script, _ = generate_script_from_text(rss_text)
 if not script:
     print("❌ Failed to generate script.")
     exit()
@@ -443,8 +305,7 @@ os.makedirs(PODCAST_DIR, exist_ok=True)
 final_filename = save_audio_with_intro_outro(audio_data, TODAY)
 add_id3_tags(final_filename, TODAY)
 
-print("📝 Generating show notes page...")
-generate_show_notes(articles_used, TODAY)
+generate_show_notes(rss_text, TODAY)
 
 print("📬 Sending podcast email...")
 send_email_with_podcast(final_filename)
@@ -455,12 +316,5 @@ update_rss()
 print("🚀 Pushing podcast folder to PythonAnywhere...")
 push_to_pythonanywhere_api()
 
-print("🎞️ Generating video...")
-video_path = generate_youtube_video_safe(final_filename, TODAY)
-if video_path:
-    print("📤 Uploading video to PythonAnywhere...")
-    push_video_to_pythonanywhere(video_path)
-    print("📧 Sending video by email...")
-    email_video_file(video_path, TODAY)
 
 print("✅ Done!")
