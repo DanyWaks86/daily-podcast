@@ -1,69 +1,65 @@
+import feedparser
+import datetime
 import os
-import requests
-from datetime import datetime
+import subprocess
 
-PODCAST_DIR = "/opt/render/project/src/podcast/"
-USERNAME = os.environ.get("PYTHONANYWHERE_USERNAME")
-TOKEN = os.environ.get("PYTHONANYWHERE_API_TOKEN")
-BASE_URL = f"https://{USERNAME}.pythonanywhere.com/Podcast/"
-RSS_FILENAME = "rss.xml"
-MAX_EPISODES = 14
+# === SSH Key Restoration Block ===
+SSH_PRIVATE_KEY = os.environ.get("SSH_PRIVATE_KEY", "")
+SSH_KEY_PATH = os.environ.get("SSH_KEY_PATH", "/tmp/ssh_key")
 
-def regenerate_rss():
-    print("🔄 Regenerating RSS from existing MP3 files...")
-    files = sorted(
-        [f for f in os.listdir(PODCAST_DIR) if f.startswith("final_podcast_") and f.endswith(".mp3")],
-        reverse=True
-    )[:MAX_EPISODES]
+with open(SSH_KEY_PATH, "w") as key_file:
+    key_file.write(SSH_PRIVATE_KEY)
+os.chmod(SSH_KEY_PATH, 0o600)
 
-    rss_items = ""
-    for f in files:
-        date_part = f.replace("final_podcast_", "").replace(".mp3", "")
+# === RSS Feed Sources ===
+FEEDS = {
+    "IGN": "https://feeds.ign.com/ign/all",
+    "GameSpot": "https://www.gamespot.com/feeds/news/",
+    "Polygon": "https://www.polygon.com/rss/index.xml",
+    "Kotaku": "https://kotaku.com/rss"
+}
+
+# === Output Filename ===
+OUTPUT_FILE = "rss_articles.txt"
+
+# Optional: spoof user-agent to avoid 403s
+HEADERS = {"User-Agent": "Mozilla/5.0 (RSS Fetcher)"}
+
+def fetch_articles():
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = [f"RSS Fetch Run: {now}\n"]
+
+    for source, url in FEEDS.items():
         try:
-            pub_date = datetime.strptime(date_part, "%Y-%m-%d")
-        except ValueError:
-            continue
-        rss_items += f"""
-    <item>
-      <title>{pub_date.strftime('%B %d')} - Gaming News Digest</title>
-      <link>{BASE_URL}podcast_{date_part}.html</link>
-      <description><![CDATA[Gaming news highlights summarized by Dany Waksman. Full articles at: {BASE_URL}final_podcast_{date_part}.mp3]]></description>
-      <enclosure url="{BASE_URL}final_podcast_{date_part}.mp3" length="5000000" type="audio/mpeg" />
-      <guid>{date_part}</guid>
-      <pubDate>{pub_date.strftime('%a, %d %b %Y 06:00:00 GMT')}</pubDate>
-    </item>"""
+            feed = feedparser.parse(url, request_headers=HEADERS)
+            if not feed.entries:
+                lines.append(f"[{source}] - FAILED (No articles)\n")
+                continue
 
-    rss_feed = f"""<?xml version="1.0" encoding="UTF-8" ?>
-<rss version="2.0">
-  <channel>
-    <title>Daily Video Games Digest</title>
-    <link>{BASE_URL}</link>
-    <description>Daily video game news podcast, summarized and delivered by Dany Waksman.</description>
-    <language>en-us</language>
-    <ttl>1440</ttl>
-{rss_items}
-  </channel>
-</rss>"""
+            lines.append(f"\n[{source}] - {len(feed.entries)} articles:\n")
+            for entry in feed.entries[:5]:  # limit to 5 for test
+                title = entry.get("title", "No Title")
+                link = entry.get("link", "No Link")
+                lines.append(f" - {title}\n   {link}\n")
 
-    rss_path = os.path.join(PODCAST_DIR, RSS_FILENAME)
-    with open(rss_path, "w", encoding="utf-8") as f:
-        f.write(rss_feed)
-    print("✅ RSS file regenerated.")
+        except Exception as e:
+            lines.append(f"[{source}] - FAILED ({str(e)})\n")
 
-def upload_rss_to_pythonanywhere():
-    print("🚀 Uploading RSS to PythonAnywhere...")
-    headers = {
-        "Authorization": f"Token {TOKEN}"
-    }
-    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{USERNAME}/files/path/home/{USERNAME}/Podcast/{RSS_FILENAME}"
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        f.writelines([line + "\n" for line in lines])
 
-    with open(os.path.join(PODCAST_DIR, RSS_FILENAME), "rb") as f:
-        response = requests.post(upload_url, headers=headers, files={"content": f})
-        if response.status_code == 200:
-            print("✅ Successfully uploaded RSS to PythonAnywhere.")
-        else:
-            print(f"❌ Upload failed: {response.text}")
+def push_to_pythonanywhere():
+    username = os.environ["SSH_USERNAME"]
+    hostname = os.environ["SSH_HOSTNAME"]
+    remote_path = f"/home/{username}/Podcast/rss_articles.txt"
+
+    subprocess.run([
+        "scp",
+        "-i", SSH_KEY_PATH,
+        OUTPUT_FILE,
+        f"{username}@{hostname}:{remote_path}"
+    ])
 
 if __name__ == "__main__":
-    regenerate_rss()
-    upload_rss_to_pythonanywhere()
+    fetch_articles()
+    push_to_pythonanywhere()
