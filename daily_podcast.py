@@ -30,7 +30,7 @@ BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/"
 RSS_FILENAME = "rss.xml"
 MAX_EPISODES = 14
 
-TODAY = (datetime.now(timezone.utc) - timedelta(days=1)).strftime('%Y-%m-%d')
+TODAY = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
 def add_id3_tags(mp3_path, date_str):
     try:
