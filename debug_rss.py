@@ -7,6 +7,13 @@ import subprocess
 SSH_PRIVATE_KEY = os.environ.get("SSH_PRIVATE_KEY", "")
 SSH_KEY_PATH = os.environ.get("SSH_KEY_PATH", "/tmp/ssh_key")
 
+# Ensure parent folder exists
+ssh_dir = os.path.dirname(SSH_KEY_PATH)
+os.makedirs(ssh_dir, exist_ok=True)
+
+with open(SSH_KEY_PATH, "w") as key_file:
+    key_file.write(SSH_PRIVATE_KEY)
+os.chmod(SSH_KEY_PATH, 0o600)
 with open(SSH_KEY_PATH, "w") as key_file:
     key_file.write(SSH_PRIVATE_KEY)
 os.chmod(SSH_KEY_PATH, 0o600)
