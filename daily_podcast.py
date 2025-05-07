@@ -294,11 +294,18 @@ script, _ = generate_script_from_text(rss_text)
 if not script:
     print("❌ Failed to generate script.")
     exit()
-# ✅ Save English script as .txt for multilingual use
-en_script_path = f"/home/DanyWaks/Podcast/en/podcast_{TODAY}.txt"
-os.makedirs(os.path.dirname(en_script_path), exist_ok=True)
-with open(en_script_path, "w", encoding="utf-8") as f:
-    f.write(script)
+print("📤 Uploading English script to PythonAnywhere...")
+headers = {
+    "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
+}
+upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/en/podcast_{TODAY}.txt"
+response = requests.post(upload_url, headers=headers, files={"content": script.encode("utf-8")})
+
+if response.status_code != 200:
+    print("❌ Failed to upload English script:", response.text)
+    exit()
+else:
+    print("✅ English script uploaded successfully.")
 
 
 print("🎙️ Converting script to audio...")
