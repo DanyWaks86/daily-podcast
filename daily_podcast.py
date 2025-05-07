@@ -294,18 +294,28 @@ script, _ = generate_script_from_text(rss_text)
 if not script:
     print("❌ Failed to generate script.")
     exit()
-print("📤 Uploading English script to PythonAnywhere...")
-headers = {
-    "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
-}
-upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/en/podcast_{TODAY}.txt"
-response = requests.post(upload_url, headers=headers, files={"content": script.encode("utf-8")})
 
-if response.status_code != 200:
-    print("❌ Failed to upload English script:", response.text)
-    exit()
-else:
-    print("✅ English script uploaded successfully.")
+
+# ✅ Save English script locally for multilingual use
+en_script_path = f"/home/DanyWaks/Podcast/en/podcast_{TODAY}.txt"
+os.makedirs(os.path.dirname(en_script_path), exist_ok=True)
+with open(en_script_path, "w", encoding="utf-8") as f:
+    f.write(script)
+
+# 📤 Upload English script to PythonAnywhere
+print("📤 Uploading English script to PythonAnywhere...")
+try:
+    headers = {"Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"}
+    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/en/podcast_{TODAY}.txt"
+    with open(en_script_path, "rb") as f:
+        response = requests.post(upload_url, headers=headers, files={"content": f})
+    if response.status_code == 200:
+        print("✅ English script uploaded successfully.")
+    else:
+        print(f"⚠️ Upload failed: {response.status_code} – {response.reason}\n{response.text}")
+except Exception as e:
+    print(f"⚠️ Exception during upload: {e}")
+
 
 
 print("🎙️ Converting script to audio...")
