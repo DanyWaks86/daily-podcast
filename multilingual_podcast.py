@@ -2,7 +2,7 @@ import os
 import openai
 import requests
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pydub import AudioSegment
 
 # ENV variables expected: OPENAI_API_KEY, ELEVENLABS_API_KEY
@@ -10,27 +10,26 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
 BASE_DIR = "/home/DanyWaks/Podcast"
-DATE = datetime.now().strftime("%Y-%m-%d")
+DATE = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 ENGLISH_SCRIPT_PATH = f"{BASE_DIR}/en/podcast_{DATE}.txt"
 INTRO_MUSIC_PATH = f"{BASE_DIR}/breaking-news-intro-logo-314320.mp3"
-OUTRO_MUSIC_PATH = f"{BASE_DIR}/breaking-news-intro-logo-314320.mp3"  # Using same file as intro
+OUTRO_MUSIC_PATH = f"{BASE_DIR}/breaking-news-intro-logo-314320.mp3"
 COVER_IMAGE_URL = "https://danywaks.pythonanywhere.com/Podcast/podcast-cover.png"
 PYTHONANYWHERE_USERNAME = os.getenv("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.getenv("PYTHONANYWHERE_API_TOKEN")
 
 LANGUAGE_SETTINGS = {
-    "fr": {"name": "French", "voice_id": "TxGEqnHWrfWFTfGW9XjX"},
-    "es": {"name": "Spanish", "voice_id": "MF3mGyEYCl7XYWbV9V6O"},
-    "pt": {"name": "Portuguese", "voice_id": "M7KjBV5hZY0TzF0D8OIK"},
-    "de": {"name": "German", "voice_id": "oWAxZDx7w5VEj9dCyTzz"},
-    "ja": {"name": "Japanese", "voice_id": "N3IP6t3n4Sn8tXg5Ggqe"},
+    "fr": {"name": "French", "voice_id": "TxGEqnHWrfWFTfGW9XjX", "locale": "fr-fr"},
+    "es": {"name": "Spanish", "voice_id": "MF3mGyEYCl7XYWbV9V6O", "locale": "es-es"},
+    "pt": {"name": "Portuguese", "voice_id": "M7KjBV5hZY0TzF0D8OIK", "locale": "pt-br"},
+    "de": {"name": "German", "voice_id": "oWAxZDx7w5VEj9dCyTzz", "locale": "de-de"},
+    "ja": {"name": "Japanese", "voice_id": "N3IP6t3n4Sn8tXg5Ggqe", "locale": "ja-jp"},
 }
 
 HEADERS = {
     "xi-api-key": ELEVENLABS_API_KEY,
     "Content-Type": "application/json"
 }
-
 
 def translate_text(text, target_language):
     prompt = f"Translate this podcast script into {LANGUAGE_SETTINGS[target_language]['name']} with a natural, local tone:\n\n{text}"
@@ -39,7 +38,6 @@ def translate_text(text, target_language):
         messages=[{"role": "user", "content": prompt}]
     )
     return response.choices[0].message.content.strip()
-
 
 def text_to_speech(text, voice_id):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
@@ -57,7 +55,6 @@ def text_to_speech(text, voice_id):
         return None
     return response.content
 
-
 def generate_rss(lang, date_str, title="Daily Video Games Digest"):
     folder = f"{BASE_DIR}/{lang}"
     mp3_url = f"https://danywaks.pythonanywhere.com/Podcast/{lang}/final_podcast_{lang}_{date_str}.mp3"
@@ -71,25 +68,37 @@ def generate_rss(lang, date_str, title="Daily Video Games Digest"):
       <description><![CDATA[Gaming news podcast in {LANGUAGE_SETTINGS[lang]['name']}]]></description>
       <enclosure url=\"{mp3_url}\" type=\"audio/mpeg\" />
       <guid>{html_url}</guid>
-      <pubDate>{datetime.now().strftime('%a, %d %b %Y %H:%M:%S %z')}</pubDate>
+      <pubDate>{datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate>
+      <itunes:author>Dany Waksman</itunes:author>
+      <itunes:image href=\"{COVER_IMAGE_URL}\"/>
     </item>
     """
 
     with open(rss_path, 'w', encoding='utf-8') as f:
         f.write(f"""
+        <?xml version=\"1.0\" encoding=\"UTF-8\"?>
         <rss version=\"2.0\"
-             xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\">
+             xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\"
+             xmlns:atom=\"http://www.w3.org/2005/Atom\"
+             xmlns:podcast=\"https://podcastindex.org/namespace/1.0\">
           <channel>
             <title>{title} ({LANGUAGE_SETTINGS[lang]['name']})</title>
             <link>{html_url}</link>
-            <description>Daily gaming news in {LANGUAGE_SETTINGS[lang]['name']}</description>
-            <language>{lang}</language>
+            <language>{LANGUAGE_SETTINGS[lang]['locale']}</language>
+            <description>Daily video game news podcast in {LANGUAGE_SETTINGS[lang]['name']}, summarized and delivered by Dany Waksman.</description>
+            <itunes:author>Dany Waksman</itunes:author>
+            <itunes:summary>AI-generated daily gaming news in {LANGUAGE_SETTINGS[lang]['name']}.</itunes:summary>
+            <itunes:explicit>no</itunes:explicit>
+            <podcast:locked>yes</podcast:locked>
             <itunes:image href=\"{COVER_IMAGE_URL}\"/>
+            <itunes:category text=\"Technology\"/>
+            <itunes:category text=\"Leisure\">
+              <itunes:category text=\"Video Games\"/>
+            </itunes:category>
             {item}
           </channel>
         </rss>
-        """)
-
+        ")
 
 def upload_to_pythonanywhere(folder, files):
     headers = {"Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"}
@@ -103,15 +112,18 @@ def upload_to_pythonanywhere(folder, files):
             else:
                 print(f"✅ Uploaded {filename} to /Podcast/{folder}/")
 
-
 def main():
     with open(ENGLISH_SCRIPT_PATH, 'r', encoding='utf-8') as f:
         english_script = f.read()
 
     for lang_code, settings in LANGUAGE_SETTINGS.items():
-        translated_text = translate_text(english_script, lang_code)
-        print(f"Translated script to {settings['name']}")
+        try:
+            translated_text = translate_text(english_script, lang_code).strip()
+        except Exception as e:
+            print(f"❌ Failed to translate to {settings['name']}: {e}")
+            continue
 
+        print(f"🌍 Translated script to {settings['name']}")
         audio_bytes = text_to_speech(translated_text, settings["voice_id"])
         if not audio_bytes:
             continue
@@ -161,7 +173,6 @@ def main():
             ]
         )
         print(f"✅ Generated and uploaded podcast in {settings['name']}")
-
 
 if __name__ == "__main__":
     main()
