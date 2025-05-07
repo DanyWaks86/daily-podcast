@@ -295,13 +295,6 @@ if not script:
     print("❌ Failed to generate script.")
     exit()
 
-
-# ✅ Save English script locally for multilingual use
-en_script_path = f"/home/DanyWaks/Podcast/en/podcast_{TODAY}.txt"
-os.makedirs(os.path.dirname(en_script_path), exist_ok=True)
-with open(en_script_path, "w", encoding="utf-8") as f:
-    f.write(script)
-
 # 📤 Upload English script to PythonAnywhere
 print("📤 Uploading English script to PythonAnywhere...")
 try:
