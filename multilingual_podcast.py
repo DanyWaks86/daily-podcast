@@ -1,6 +1,7 @@
 import os
 import openai
 import requests
+import subprocess
 from datetime import datetime
 from pydub import AudioSegment
 
@@ -11,7 +12,11 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 BASE_DIR = "/home/DanyWaks/Podcast"
 DATE = datetime.now().strftime("%Y-%m-%d")
 ENGLISH_SCRIPT_PATH = f"{BASE_DIR}/en/podcast_{DATE}.txt"
-INTRO_MUSIC_PATH = f"{BASE_DIR}/intro_music.mp3"
+INTRO_MUSIC_PATH = f"{BASE_DIR}/breaking-news-intro-logo-314320.mp3"
+OUTRO_MUSIC_PATH = f"{BASE_DIR}/breaking-news-intro-logo-314320.mp3"  # Using same file as intro
+COVER_IMAGE_URL = "https://danywaks.pythonanywhere.com/Podcast/podcast-cover.png"
+PYTHONANYWHERE_USERNAME = os.getenv("PYTHONANYWHERE_USERNAME")
+PYTHONANYWHERE_API_TOKEN = os.getenv("PYTHONANYWHERE_API_TOKEN")
 
 LANGUAGE_SETTINGS = {
     "fr": {"name": "French", "voice_id": "TxGEqnHWrfWFTfGW9XjX"},
@@ -55,7 +60,7 @@ def text_to_speech(text, voice_id):
 
 def generate_rss(lang, date_str, title="Daily Video Games Digest"):
     folder = f"{BASE_DIR}/{lang}"
-    mp3_url = f"https://danywaks.pythonanywhere.com/Podcast/{lang}/final_podcast_{date_str}.mp3"
+    mp3_url = f"https://danywaks.pythonanywhere.com/Podcast/{lang}/final_podcast_{lang}_{date_str}.mp3"
     html_url = f"https://danywaks.pythonanywhere.com/Podcast/{lang}/podcast_{date_str}.html"
     rss_path = os.path.join(folder, f"rss_{lang}.xml")
 
@@ -64,23 +69,39 @@ def generate_rss(lang, date_str, title="Daily Video Games Digest"):
       <title>{title} - {date_str}</title>
       <link>{html_url}</link>
       <description><![CDATA[Gaming news podcast in {LANGUAGE_SETTINGS[lang]['name']}]]></description>
-      <enclosure url="{mp3_url}" type="audio/mpeg" />
+      <enclosure url=\"{mp3_url}\" type=\"audio/mpeg\" />
       <guid>{html_url}</guid>
       <pubDate>{datetime.now().strftime('%a, %d %b %Y %H:%M:%S %z')}</pubDate>
     </item>
     """
-    
+
     with open(rss_path, 'w', encoding='utf-8') as f:
         f.write(f"""
-        <rss version="2.0">
+        <rss version=\"2.0\"
+             xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\">
           <channel>
             <title>{title} ({LANGUAGE_SETTINGS[lang]['name']})</title>
             <link>{html_url}</link>
             <description>Daily gaming news in {LANGUAGE_SETTINGS[lang]['name']}</description>
+            <language>{lang}</language>
+            <itunes:image href=\"{COVER_IMAGE_URL}\"/>
             {item}
           </channel>
         </rss>
         """)
+
+
+def upload_to_pythonanywhere(folder, files):
+    headers = {"Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"}
+    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{folder}/"
+    for filename in files:
+        local_path = os.path.join(BASE_DIR, folder, filename)
+        with open(local_path, "rb") as f:
+            response = requests.post(upload_url + filename, headers=headers, files={"content": f})
+            if response.status_code != 200:
+                print(f"❌ Failed to upload {filename} for {folder}: {response.text}")
+            else:
+                print(f"✅ Uploaded {filename} to /Podcast/{folder}/")
 
 
 def main():
@@ -98,18 +119,24 @@ def main():
         folder = f"{BASE_DIR}/{lang_code}"
         os.makedirs(folder, exist_ok=True)
 
-        tts_path = os.path.join(folder, f"tts_{DATE}.mp3")
-        final_path = os.path.join(folder, f"final_podcast_{DATE}.mp3")
-        html_path = os.path.join(folder, f"podcast_{DATE}.html")
-
-        with open(tts_path, 'wb') as f:
+        raw_path = os.path.join(folder, f"voice_raw_{lang_code}_{DATE}.mp3")
+        with open(raw_path, 'wb') as f:
             f.write(audio_bytes)
 
-        tts_audio = AudioSegment.from_mp3(tts_path)
+        norm_path = os.path.join(folder, f"voice_normalized_{lang_code}_{DATE}.wav")
+        subprocess.run([
+            "ffmpeg", "-y", "-i", raw_path, "-af", "loudnorm", norm_path
+        ], check=True)
+
         intro_music = AudioSegment.from_mp3(INTRO_MUSIC_PATH)
-        final_audio = intro_music + tts_audio
+        outro_music = AudioSegment.from_mp3(OUTRO_MUSIC_PATH)
+        voice = AudioSegment.from_file(norm_path, format="wav")
+
+        final_audio = intro_music + voice + outro_music
+        final_path = os.path.join(folder, f"final_podcast_{lang_code}_{DATE}.mp3")
         final_audio.export(final_path, format="mp3")
 
+        html_path = os.path.join(folder, f"podcast_{DATE}.html")
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(f"""
             <html>
@@ -117,14 +144,23 @@ def main():
               <body>
                 <h1>{DATE} - {settings['name']} Gaming Podcast</h1>
                 <audio controls>
-                  <source src="final_podcast_{DATE}.mp3" type="audio/mpeg">
+                  <source src=\"final_podcast_{lang_code}_{DATE}.mp3\" type=\"audio/mpeg\">
                 </audio>
               </body>
             </html>
             """)
 
         generate_rss(lang_code, DATE)
-        print(f"✅ Generated podcast in {settings['name']}")
+
+        upload_to_pythonanywhere(
+            lang_code,
+            [
+                f"final_podcast_{lang_code}_{DATE}.mp3",
+                f"podcast_{DATE}.html",
+                f"rss_{lang_code}.xml",
+            ]
+        )
+        print(f"✅ Generated and uploaded podcast in {settings['name']}")
 
 
 if __name__ == "__main__":
