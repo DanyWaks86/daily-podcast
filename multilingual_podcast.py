@@ -33,6 +33,7 @@ HEADERS = {
 
 def translate_text(text, target_language):
     prompt = f"Translate this podcast script into {LANGUAGE_SETTINGS[target_language]['name']} with a natural, local tone:\n\n{text}"
+    print(f"🧠 Translating to {LANGUAGE_SETTINGS[target_language]['name']}...")
     response = openai.ChatCompletion.create(
         model="gpt-4-turbo",
         messages=[{"role": "user", "content": prompt}]
@@ -40,6 +41,7 @@ def translate_text(text, target_language):
     return response.choices[0].message.content.strip()
 
 def text_to_speech(text, voice_id):
+    print("🔊 Generating TTS audio...")
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     payload = {
         "text": text,
@@ -56,6 +58,7 @@ def text_to_speech(text, voice_id):
     return response.content
 
 def generate_rss(lang, date_str, title="Daily Video Games Digest"):
+    print(f"📰 Generating RSS feed for {lang}...")
     folder = f"{BASE_DIR}/{lang}"
     mp3_url = f"https://danywaks.pythonanywhere.com/Podcast/{lang}/final_podcast_{lang}_{date_str}.mp3"
     html_url = f"https://danywaks.pythonanywhere.com/Podcast/{lang}/podcast_{date_str}.html"
@@ -65,7 +68,7 @@ def generate_rss(lang, date_str, title="Daily Video Games Digest"):
     <item>
       <title>{title} - {date_str}</title>
       <link>{html_url}</link>
-      <description><![CDATA[Gaming news podcast in {LANGUAGE_SETTINGS[lang]['name']}]]></description>
+      <description><![CDATA[Gaming news podcast in {LANGUAGE_SETTINGS[lang]['name']}, by Dany Waksman.]]></description>
       <enclosure url=\"{mp3_url}\" type=\"audio/mpeg\" />
       <guid>{html_url}</guid>
       <pubDate>{datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate>
@@ -75,32 +78,31 @@ def generate_rss(lang, date_str, title="Daily Video Games Digest"):
     """
 
     with open(rss_path, 'w', encoding='utf-8') as f:
-        f.write(f"""
-        <?xml version=\"1.0\" encoding=\"UTF-8\"?>
-        <rss version=\"2.0\"
-             xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\"
-             xmlns:atom=\"http://www.w3.org/2005/Atom\"
-             xmlns:podcast=\"https://podcastindex.org/namespace/1.0\">
-          <channel>
-            <title>{title} ({LANGUAGE_SETTINGS[lang]['name']})</title>
-            <link>{html_url}</link>
-            <language>{LANGUAGE_SETTINGS[lang]['locale']}</language>
-            <description>Daily video game news podcast in {LANGUAGE_SETTINGS[lang]['name']}, summarized and delivered by Dany Waksman.</description>
-            <itunes:author>Dany Waksman</itunes:author>
-            <itunes:summary>AI-generated daily gaming news in {LANGUAGE_SETTINGS[lang]['name']}.</itunes:summary>
-            <itunes:explicit>no</itunes:explicit>
-            <podcast:locked>yes</podcast:locked>
-            <itunes:image href=\"{COVER_IMAGE_URL}\"/>
-            <itunes:category text=\"Technology\"/>
-            <itunes:category text=\"Leisure\">
-              <itunes:category text=\"Video Games\"/>
-            </itunes:category>
-            {item}
-          </channel>
-        </rss>
-        """)
+        f.write(f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<rss version=\"2.0\"
+     xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\"
+     xmlns:atom=\"http://www.w3.org/2005/Atom\"
+     xmlns:podcast=\"https://podcastindex.org/namespace/1.0\">
+  <channel>
+    <title>{title} ({LANGUAGE_SETTINGS[lang]['name']})</title>
+    <link>{html_url}</link>
+    <language>{LANGUAGE_SETTINGS[lang]['locale']}</language>
+    <description>Daily video game news podcast in {LANGUAGE_SETTINGS[lang]['name']}.</description>
+    <itunes:author>Dany Waksman</itunes:author>
+    <itunes:summary>AI-generated daily gaming news in {LANGUAGE_SETTINGS[lang]['name']}.</itunes:summary>
+    <itunes:explicit>no</itunes:explicit>
+    <podcast:locked>yes</podcast:locked>
+    <itunes:image href=\"{COVER_IMAGE_URL}\"/>
+    <itunes:category text=\"Technology\"/>
+    <itunes:category text=\"Leisure\">
+      <itunes:category text=\"Video Games\"/>
+    </itunes:category>
+    {item}
+  </channel>
+</rss>""")
 
 def upload_to_pythonanywhere(folder, files):
+    print(f"☁️ Uploading files for {folder} to PythonAnywhere...")
     headers = {"Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"}
     upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{folder}/"
     for filename in files:
@@ -113,8 +115,14 @@ def upload_to_pythonanywhere(folder, files):
                 print(f"✅ Uploaded {filename} to /Podcast/{folder}/")
 
 def main():
-    with open(ENGLISH_SCRIPT_PATH, 'r', encoding='utf-8') as f:
-        english_script = f.read()
+    print("📥 Downloading English script from PythonAnywhere...")
+    headers = {"Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"}
+    txt_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/en/podcast_{DATE}.txt"
+    response = requests.get(txt_url, headers=headers)
+    if response.status_code != 200:
+        print(f"❌ Failed to fetch English script: {response.text}")
+        return
+    english_script = response.text
 
     for lang_code, settings in LANGUAGE_SETTINGS.items():
         try:
@@ -126,6 +134,7 @@ def main():
         print(f"🌍 Translated script to {settings['name']}")
         audio_bytes = text_to_speech(translated_text, settings["voice_id"])
         if not audio_bytes:
+            print(f"❌ No audio returned for {settings['name']}")
             continue
 
         folder = f"{BASE_DIR}/{lang_code}"
@@ -135,11 +144,11 @@ def main():
         with open(raw_path, 'wb') as f:
             f.write(audio_bytes)
 
+        print("🎚️ Normalizing audio with ffmpeg...")
         norm_path = os.path.join(folder, f"voice_normalized_{lang_code}_{DATE}.wav")
-        subprocess.run([
-            "ffmpeg", "-y", "-i", raw_path, "-af", "loudnorm", norm_path
-        ], check=True)
+        subprocess.run(["ffmpeg", "-y", "-i", raw_path, "-af", "loudnorm", norm_path], check=True)
 
+        print("🎵 Combining intro, voice, outro...")
         intro_music = AudioSegment.from_mp3(INTRO_MUSIC_PATH)
         outro_music = AudioSegment.from_mp3(OUTRO_MUSIC_PATH)
         voice = AudioSegment.from_file(norm_path, format="wav")
@@ -150,20 +159,17 @@ def main():
 
         html_path = os.path.join(folder, f"podcast_{DATE}.html")
         with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(f"""
-            <html>
-              <head><title>{DATE} - {settings['name']} Gaming Podcast</title></head>
-              <body>
-                <h1>{DATE} - {settings['name']} Gaming Podcast</h1>
-                <audio controls>
-                  <source src=\"final_podcast_{lang_code}_{DATE}.mp3\" type=\"audio/mpeg\">
-                </audio>
-              </body>
-            </html>
-            """)
+            f.write(f"""<html>
+  <head><title>{DATE} - {settings['name']} Gaming Podcast</title></head>
+  <body>
+    <h1>{DATE} - {settings['name']} Gaming Podcast</h1>
+    <audio controls>
+      <source src=\"final_podcast_{lang_code}_{DATE}.mp3\" type=\"audio/mpeg\">
+    </audio>
+  </body>
+</html>""")
 
         generate_rss(lang_code, DATE)
-
         upload_to_pythonanywhere(
             lang_code,
             [
@@ -172,7 +178,7 @@ def main():
                 f"rss_{lang_code}.xml",
             ]
         )
-        print(f"✅ Generated and uploaded podcast in {settings['name']}")
+        print(f"✅ Done with {settings['name']} version.")
 
 if __name__ == "__main__":
     main()
