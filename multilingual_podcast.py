@@ -98,7 +98,7 @@ def generate_rss(lang, date_str, title="Daily Video Games Digest"):
             {item}
           </channel>
         </rss>
-        ")
+        """)
 
 def upload_to_pythonanywhere(folder, files):
     headers = {"Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"}
