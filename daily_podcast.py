@@ -89,6 +89,19 @@ Here are the real articles:
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
     return response.json().get('choices', [{}])[0].get('message', {}).get('content', ''), None
 
+
+script, _ = generate_script_from_text(rss_text)
+if not script:
+    print("❌ Failed to generate script.")
+    exit()
+
+# ✅ Save English script as .txt for multilingual use
+en_script_path = f"/home/DanyWaks/Podcast/en/podcast_{TODAY}.txt"
+os.makedirs(os.path.dirname(en_script_path), exist_ok=True)
+with open(en_script_path, "w", encoding="utf-8") as f:
+    f.write(script)
+
+
 def text_to_speech(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
     headers = {
