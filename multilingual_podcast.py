@@ -1,12 +1,11 @@
 import os
-import openai
 import requests
-import subprocess
 from datetime import datetime, timezone
 from pydub import AudioSegment
 
-# ENV variables expected: OPENAI_API_KEY, ELEVENLABS_API_KEY
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# ENV variables expected: OPENAI_API_KEY, OPENAI_PROJECT_ID, ELEVENLABS_API_KEY
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_PROJECT_ID = os.getenv("OPENAI_PROJECT_ID")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
 BASE_DIR = "/home/DanyWaks/Podcast"
@@ -19,11 +18,7 @@ PYTHONANYWHERE_USERNAME = os.getenv("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.getenv("PYTHONANYWHERE_API_TOKEN")
 
 LANGUAGE_SETTINGS = {
-    "fr": {"name": "French", "voice_id": "TxGEqnHWrfWFTfGW9XjX", "locale": "fr-fr"},
-    "es": {"name": "Spanish", "voice_id": "MF3mGyEYCl7XYWbV9V6O", "locale": "es-es"},
-    "pt": {"name": "Portuguese", "voice_id": "M7KjBV5hZY0TzF0D8OIK", "locale": "pt-br"},
-    "de": {"name": "German", "voice_id": "oWAxZDx7w5VEj9dCyTzz", "locale": "de-de"},
-    "ja": {"name": "Japanese", "voice_id": "N3IP6t3n4Sn8tXg5Ggqe", "locale": "ja-jp"},
+    "fr": {"name": "French", "voice_id": "TxGEqnHWrfWFTfGW9XjX", "locale": "fr-fr"}
 }
 
 HEADERS = {
@@ -32,13 +27,21 @@ HEADERS = {
 }
 
 def translate_text(text, target_language):
-    prompt = f"Translate this podcast script into {LANGUAGE_SETTINGS[target_language]['name']} with a natural, local tone:\n\n{text}"
     print(f"🧠 Translating to {LANGUAGE_SETTINGS[target_language]['name']}...")
-    response = openai.ChatCompletion.create(
-        model="gpt-4-turbo",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.choices[0].message.content.strip()
+    prompt = f"Translate this podcast script into {LANGUAGE_SETTINGS[target_language]['name']} with a natural, local tone:\n\n{text}"
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "OpenAI-Project": OPENAI_PROJECT_ID
+    }
+    data = {
+        "model": "gpt-4-turbo",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7
+    }
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+    if response.status_code != 200:
+        raise Exception(response.text)
+    return response.json()['choices'][0]['message']['content'].strip()
 
 def text_to_speech(text, voice_id):
     print("🔊 Generating TTS audio...")
@@ -128,7 +131,7 @@ def main():
     settings = LANGUAGE_SETTINGS[lang_code]
 
     try:
-        translated_text = translate_text(english_script, lang_code).strip()
+        translated_text = translate_text(english_script, lang_code)
     except Exception as e:
         print(f"❌ Failed to translate to {settings['name']}: {e}")
         return
@@ -176,7 +179,6 @@ def main():
         ]
     )
     print(f"✅ Done with {settings['name']} version.")
-
 
 if __name__ == "__main__":
     main()
