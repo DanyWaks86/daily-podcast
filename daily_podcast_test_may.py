@@ -116,28 +116,31 @@ def text_to_speech(text):
 
 def save_audio_with_intro_outro(audio_data, filename_base):
     raw_voice_path = os.path.join(PODCAST_DIR, "voice_raw.mp3")
-    normalized_voice_path = os.path.join(PODCAST_DIR, "voice_normalized.wav")
+    normalized_voice_path = os.path.join(PODCAST_DIR, "voice_normalized.mp3")
 
     # Save ElevenLabs raw output first
     with open(raw_voice_path, "wb") as f:
         f.write(audio_data)
 
-    # Normalize the voice audio using ffmpeg loudnorm filter
+    # Normalize audio using ffmpeg and output to MP3 (instead of memory-hungry WAV)
     subprocess.run([
         "ffmpeg", "-y",
         "-i", raw_voice_path,
         "-af", "loudnorm",
+        "-codec:a", "libmp3lame",
+        "-q:a", "2",
         normalized_voice_path
     ], check=True)
 
     # Load intro music and normalized voice
     intro = AudioSegment.from_file(os.path.join(PODCAST_DIR, "breaking-news-intro-logo-314320.mp3"), format="mp3") - 8
-    voice = AudioSegment.from_file(normalized_voice_path, format="wav")
+    voice = AudioSegment.from_file(normalized_voice_path, format="mp3")
 
     # Combine intro + voice + outro
     combined = intro + voice + intro
     final_filename = os.path.join(PODCAST_DIR, f"final_podcast_{filename_base}.mp3")
 
+    # Export final MP3
     combined.export(
         final_filename,
         format="mp3",
@@ -147,7 +150,9 @@ def save_audio_with_intro_outro(audio_data, filename_base):
             "album": "Daily Video Games Digest"
         }
     )
+
     return final_filename
+
 
 
 def generate_show_notes(rss_text, date_str):
