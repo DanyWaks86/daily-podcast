@@ -124,42 +124,39 @@ def main():
         return
     english_script = response.text
 
-    for lang_code, settings in LANGUAGE_SETTINGS.items():
-        try:
-            translated_text = translate_text(english_script, lang_code).strip()
-        except Exception as e:
-            print(f"❌ Failed to translate to {settings['name']}: {e}")
-            continue
+    lang_code = "fr"
+    settings = LANGUAGE_SETTINGS[lang_code]
 
-        print(f"🌍 Translated script to {settings['name']}")
-        audio_bytes = text_to_speech(translated_text, settings["voice_id"])
-        if not audio_bytes:
-            print(f"❌ No audio returned for {settings['name']}")
-            continue
+    try:
+        translated_text = translate_text(english_script, lang_code).strip()
+    except Exception as e:
+        print(f"❌ Failed to translate to {settings['name']}: {e}")
+        return
 
-        folder = f"{BASE_DIR}/{lang_code}"
-        os.makedirs(folder, exist_ok=True)
+    print(f"🌍 Translated script to {settings['name']}")
+    audio_bytes = text_to_speech(translated_text, settings["voice_id"])
+    if not audio_bytes:
+        print(f"❌ No audio returned for {settings['name']}")
+        return
 
-        raw_path = os.path.join(folder, f"voice_raw_{lang_code}_{DATE}.mp3")
-        with open(raw_path, 'wb') as f:
-            f.write(audio_bytes)
+    folder = f"{BASE_DIR}/{lang_code}"
+    os.makedirs(folder, exist_ok=True)
 
-        print("🎚️ Normalizing audio with ffmpeg...")
-        norm_path = os.path.join(folder, f"voice_normalized_{lang_code}_{DATE}.wav")
-        subprocess.run(["ffmpeg", "-y", "-i", raw_path, "-af", "loudnorm", norm_path], check=True)
+    final_path = os.path.join(folder, f"final_podcast_{lang_code}_{DATE}.mp3")
+    with open(final_path, 'wb') as f:
+        f.write(audio_bytes)
 
-        print("🎵 Combining intro, voice, outro...")
-        intro_music = AudioSegment.from_mp3(INTRO_MUSIC_PATH)
-        outro_music = AudioSegment.from_mp3(OUTRO_MUSIC_PATH)
-        voice = AudioSegment.from_file(norm_path, format="wav")
+    print("🎵 Combining with intro/outro...")
+    intro = AudioSegment.from_mp3(INTRO_MUSIC_PATH)
+    outro = AudioSegment.from_mp3(OUTRO_MUSIC_PATH)
+    voice = AudioSegment.from_file(final_path, format="mp3")
 
-        final_audio = intro_music + voice + outro_music
-        final_path = os.path.join(folder, f"final_podcast_{lang_code}_{DATE}.mp3")
-        final_audio.export(final_path, format="mp3")
+    combined = intro + voice + outro
+    combined.export(final_path, format="mp3")
 
-        html_path = os.path.join(folder, f"podcast_{DATE}.html")
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(f"""<html>
+    html_path = os.path.join(folder, f"podcast_{DATE}.html")
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(f"""<html>
   <head><title>{DATE} - {settings['name']} Gaming Podcast</title></head>
   <body>
     <h1>{DATE} - {settings['name']} Gaming Podcast</h1>
@@ -169,16 +166,17 @@ def main():
   </body>
 </html>""")
 
-        generate_rss(lang_code, DATE)
-        upload_to_pythonanywhere(
-            lang_code,
-            [
-                f"final_podcast_{lang_code}_{DATE}.mp3",
-                f"podcast_{DATE}.html",
-                f"rss_{lang_code}.xml",
-            ]
-        )
-        print(f"✅ Done with {settings['name']} version.")
+    generate_rss(lang_code, DATE)
+    upload_to_pythonanywhere(
+        lang_code,
+        [
+            f"final_podcast_{lang_code}_{DATE}.mp3",
+            f"podcast_{DATE}.html",
+            f"rss_{lang_code}.xml",
+        ]
+    )
+    print(f"✅ Done with {settings['name']} version.")
+
 
 if __name__ == "__main__":
     main()
