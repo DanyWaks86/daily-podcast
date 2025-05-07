@@ -1,7 +1,8 @@
-import os
+import os 
 import io
 import requests
 import subprocess
+from datetime import datetime, timezone
 from datetime import datetime, timezone, timedelta
 from difflib import SequenceMatcher
 from pydub import AudioSegment
@@ -89,7 +90,6 @@ Here are the real articles:
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
     return response.json().get('choices', [{}])[0].get('message', {}).get('content', ''), None
 
-
 def text_to_speech(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
     headers = {
@@ -116,28 +116,31 @@ def text_to_speech(text):
 
 def save_audio_with_intro_outro(audio_data, filename_base):
     raw_voice_path = os.path.join(PODCAST_DIR, "voice_raw.mp3")
-    normalized_voice_path = os.path.join(PODCAST_DIR, "voice_normalized.wav")
+    normalized_voice_path = os.path.join(PODCAST_DIR, "voice_normalized.mp3")
 
     # Save ElevenLabs raw output first
     with open(raw_voice_path, "wb") as f:
         f.write(audio_data)
 
-    # Normalize the voice audio using ffmpeg loudnorm filter
+    # Normalize audio using ffmpeg and output to MP3 (instead of memory-hungry WAV)
     subprocess.run([
         "ffmpeg", "-y",
         "-i", raw_voice_path,
         "-af", "loudnorm",
+        "-codec:a", "libmp3lame",
+        "-q:a", "2",
         normalized_voice_path
     ], check=True)
 
     # Load intro music and normalized voice
     intro = AudioSegment.from_file(os.path.join(PODCAST_DIR, "breaking-news-intro-logo-314320.mp3"), format="mp3") - 8
-    voice = AudioSegment.from_file(normalized_voice_path, format="wav")
+    voice = AudioSegment.from_file(normalized_voice_path, format="mp3")
 
     # Combine intro + voice + outro
     combined = intro + voice + intro
     final_filename = os.path.join(PODCAST_DIR, f"final_podcast_{filename_base}.mp3")
 
+    # Export final MP3
     combined.export(
         final_filename,
         format="mp3",
@@ -147,7 +150,9 @@ def save_audio_with_intro_outro(audio_data, filename_base):
             "album": "Daily Video Games Digest"
         }
     )
+
     return final_filename
+
 
 
 def generate_show_notes(rss_text, date_str):
@@ -294,22 +299,6 @@ script, _ = generate_script_from_text(rss_text)
 if not script:
     print("❌ Failed to generate script.")
     exit()
-
-# 📤 Upload English script to PythonAnywhere
-print("📤 Uploading English script to PythonAnywhere...")
-try:
-    headers = {"Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"}
-    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/en/podcast_{TODAY}.txt"
-    with open(en_script_path, "rb") as f:
-        response = requests.post(upload_url, headers=headers, files={"content": f})
-    if response.status_code == 200:
-        print("✅ English script uploaded successfully.")
-    else:
-        print(f"⚠️ Upload failed: {response.status_code} – {response.reason}\n{response.text}")
-except Exception as e:
-    print(f"⚠️ Exception during upload: {e}")
-
-
 
 print("🎙️ Converting script to audio...")
 audio_data = text_to_speech(script)
