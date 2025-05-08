@@ -67,31 +67,40 @@ def generate_audio(text):
 
 # === Combine Audio with loudnorm ===
 def combine_audio(voice_audio_io):
+    import subprocess
+    import tempfile
+
+    # Download intro music
     intro_response = requests.get(INTRO_MUSIC_URL)
     if intro_response.status_code != 200:
         raise Exception(f"Failed to download intro music: {intro_response.status_code} – {intro_response.text}")
-    
     intro_audio = BytesIO(intro_response.content)
+
+    # Save voice audio to temp file for loudnorm normalization
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_raw:
+        temp_raw.write(voice_audio_io.read())
+        temp_raw.flush()
+
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_norm:
+            subprocess.run([
+                "ffmpeg", "-y",
+                "-i", temp_raw.name,
+                "-ar", "44100",  # explicitly downsample to safe rate
+                "-af", "loudnorm",
+                temp_norm.name
+            ], check=True)
+
+            # Load normalized audio into memory
+            normalized_voice = AudioSegment.from_wav(temp_norm.name)
+
     intro = AudioSegment.from_file(intro_audio, format="mp3")
-
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_raw:
-        raw_path = tmp_raw.name
-        AudioSegment.from_file(voice_audio_io, format="mp3").export(raw_path, format="wav")
-
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_norm:
-        norm_path = tmp_norm.name
-
-    subprocess.run([
-        "ffmpeg", "-y", "-i", raw_path, "-af", "loudnorm", norm_path
-    ], check=True)
-
-    voice_normalized = AudioSegment.from_file(norm_path, format="wav")
-    final_audio = intro + voice_normalized + intro
+    final_audio = intro + normalized_voice + intro
 
     output_io = BytesIO()
     final_audio.export(output_io, format="mp3")
     output_io.seek(0)
     return output_io
+
 
 # === Upload to PythonAnywhere ===
 def upload_to_pythonanywhere(filename, fileobj):
