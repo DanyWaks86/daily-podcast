@@ -62,14 +62,20 @@ def generate_audio(text):
         raise Exception(f"TTS failed: {response.text}")
 
 # === Combine Audio ===
+
 def combine_audio(voice_audio_io):
-    intro = AudioSegment.from_file(requests.get(INTRO_MUSIC_URL, stream=True).raw, format="mp3")
+    intro_response = requests.get(INTRO_MUSIC_URL)
+    intro_audio = BytesIO(intro_response.content)
+    intro = AudioSegment.from_file(intro_audio, format="mp3")
+
     voice = AudioSegment.from_file(voice_audio_io, format="mp3")
     final_audio = intro + voice + intro
+
     output_io = BytesIO()
     final_audio.export(output_io, format="mp3")
     output_io.seek(0)
     return output_io
+
 
 # === Upload file to PythonAnywhere ===
 def upload_to_pythonanywhere(filename, fileobj):
