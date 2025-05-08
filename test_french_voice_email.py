@@ -55,7 +55,7 @@ try:
         to=RECIPIENT_EMAIL,
         subject=f"🎧 French Voice Test – {datetime.now().strftime('%B %d, %Y')}",
         contents="Here is the test audio in French using your cloned ElevenLabs voice.",
-        attachments=[yagmail.inline(audio_io, filename="test_french_voice.mp3")]
+        attachments=[("test_french_voice.mp3", audio_io)]
     )
     print("✅ Email sent successfully.")
 except Exception as e:
