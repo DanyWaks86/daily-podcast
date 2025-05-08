@@ -65,9 +65,11 @@ def generate_audio(text):
 
 def combine_audio(voice_audio_io):
     intro_response = requests.get(INTRO_MUSIC_URL)
+    if intro_response.status_code != 200:
+        raise Exception(f"Failed to download intro music: {intro_response.status_code} – {intro_response.text}")
     intro_audio = BytesIO(intro_response.content)
-    intro = AudioSegment.from_file(intro_audio, format="mp3")
 
+    intro = AudioSegment.from_file(intro_audio, format="mp3")
     voice = AudioSegment.from_file(voice_audio_io, format="mp3")
     final_audio = intro + voice + intro
 
@@ -77,12 +79,44 @@ def combine_audio(voice_audio_io):
     return output_io
 
 
-# === Upload file to PythonAnywhere ===
+
+import time
+
 def upload_to_pythonanywhere(filename, fileobj):
     url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/fr/{filename}"
-    response = requests.post(url, headers=HEADERS_PY, files={"content": fileobj})
-    if response.status_code != 200:
-        raise Exception(f"Failed to upload {filename}: {response.text}")
+    
+    # Rewind the file-like object in case it's been read already
+    fileobj.seek(0, os.SEEK_END)
+    size_kb = fileobj.tell() / 1024
+    fileobj.seek(0)
+
+    print(f"📁 Preparing to upload: {filename} ({size_kb:.1f} KB)")
+
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        print(f"🔁 Attempt {attempt} of {max_retries} to upload {filename}...")
+        response = requests.post(url, headers=HEADERS_PY, files={"content": fileobj})
+        
+        if response.status_code == 200:
+            print(f"✅ Successfully uploaded {filename} to PythonAnywhere.")
+            return
+        
+        print(f"⚠️ Upload failed (HTTP {response.status_code}).")
+        print(f"📄 Response body: {response.text or '[empty]'}")
+
+        if response.status_code == 413:
+            print("❌ File too large to upload via API.")
+            break
+        elif response.status_code in [401, 403]:
+            print("❌ Authentication or permission error. Check API token and username.")
+            break
+        elif attempt < max_retries:
+            print("⏳ Retrying after 2 seconds...")
+            time.sleep(2)
+            fileobj.seek(0)  # rewind before retry
+        else:
+            raise Exception(f"❌ Final attempt failed to upload {filename}.")
+
 
 # === Generate HTML page ===
 def generate_html():
