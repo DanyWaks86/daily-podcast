@@ -4,6 +4,9 @@ import openai
 from datetime import datetime, timezone
 from pydub import AudioSegment
 from io import BytesIO
+import subprocess
+import tempfile
+import time
 
 # === Configuration ===
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -50,7 +53,7 @@ def generate_audio(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
     payload = {
         "text": text,
-        "model_id": "eleven_multilingual_v2",
+        "model_id": MODEL_ID,
         "voice_settings": {
             "stability": 0.4,
             "similarity_boost": 0.75
@@ -62,8 +65,7 @@ def generate_audio(text):
     else:
         raise Exception(f"TTS failed: {response.text}")
 
-# === Combine Audio ===
-
+# === Combine Audio with loudnorm ===
 def combine_audio(voice_audio_io):
     intro_response = requests.get(INTRO_MUSIC_URL)
     if intro_response.status_code != 200:
@@ -71,36 +73,44 @@ def combine_audio(voice_audio_io):
     
     intro_audio = BytesIO(intro_response.content)
     intro = AudioSegment.from_file(intro_audio, format="mp3")
-    voice = AudioSegment.from_file(voice_audio_io, format="mp3")
-    final_audio = intro + voice + intro
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_raw:
+        raw_path = tmp_raw.name
+        AudioSegment.from_file(voice_audio_io, format="mp3").export(raw_path, format="wav")
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_norm:
+        norm_path = tmp_norm.name
+
+    subprocess.run([
+        "ffmpeg", "-y", "-i", raw_path, "-af", "loudnorm", norm_path
+    ], check=True)
+
+    voice_normalized = AudioSegment.from_file(norm_path, format="wav")
+    final_audio = intro + voice_normalized + intro
 
     output_io = BytesIO()
     final_audio.export(output_io, format="mp3")
     output_io.seek(0)
     return output_io
 
-
-import time
-
+# === Upload to PythonAnywhere ===
 def upload_to_pythonanywhere(filename, fileobj):
     url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/fr/{filename}"
-    
-    # Rewind the file-like object in case it's been read already
+
     fileobj.seek(0, os.SEEK_END)
     size_kb = fileobj.tell() / 1024
     fileobj.seek(0)
-
     print(f"📁 Preparing to upload: {filename} ({size_kb:.1f} KB)")
 
     max_retries = 3
     for attempt in range(1, max_retries + 1):
         print(f"🔁 Attempt {attempt} of {max_retries} to upload {filename}...")
         response = requests.post(url, headers=HEADERS_PY, files={"content": fileobj})
-        
+
         if response.status_code == 200:
             print(f"✅ Successfully uploaded {filename} to PythonAnywhere.")
             return
-        
+
         print(f"⚠️ Upload failed (HTTP {response.status_code}).")
         print(f"📄 Response body: {response.text or '[empty]'}")
 
@@ -113,10 +123,9 @@ def upload_to_pythonanywhere(filename, fileobj):
         elif attempt < max_retries:
             print("⏳ Retrying after 2 seconds...")
             time.sleep(2)
-            fileobj.seek(0)  # rewind before retry
+            fileobj.seek(0)
         else:
             raise Exception(f"❌ Final attempt failed to upload {filename}.")
-
 
 # === Generate HTML page ===
 def generate_html():
@@ -165,16 +174,16 @@ def generate_rss():
 
 # === Main ===
 def main():
-    print("\U0001F4E5 Fetching English script...")
+    print("📥 Fetching English script...")
     script = fetch_english_script()
 
-    print("\U0001F9E0 Translating to French...")
+    print("🧠 Translating to French...")
     translated = translate_text(script)
 
-    print("\U0001F50A Generating voice audio...")
+    print("🔊 Generating voice audio...")
     voice_mp3 = generate_audio(translated)
 
-    print("\U0001F3B5 Combining with intro/outro...")
+    print("🎵 Combining with intro/outro...")
     final_audio_io = combine_audio(voice_mp3)
 
     print("☁️ Uploading MP3...")
@@ -192,7 +201,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
