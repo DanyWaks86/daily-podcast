@@ -39,14 +39,20 @@ def fetch_english_script():
     else:
         raise Exception(f"Failed to fetch English script: {response.text}")
 
+
 # === Translate ===
 def translate_text(text):
-    prompt = f"Translate this podcast script into French with a natural, local tone:\n\n{text}"
+    prompt = (
+        f"Translate this podcast script into French with a natural, local tone. "
+        f"The tone should be engaging, enthusiastic, and sound like it's being read in a casual podcast. "
+        f"Preserve the spirit and energy of the original English content.\n\n{text}"
+    )
     response = client.chat.completions.create(
         model="gpt-4-turbo",
         messages=[{"role": "user", "content": prompt}]
     )
     return response.choices[0].message.content.strip()
+
 
 # === ElevenLabs TTS ===
 def generate_audio(text):
