@@ -14,9 +14,7 @@ PYTHONANYWHERE_API_TOKEN = os.getenv("PYTHONANYWHERE_API_TOKEN")
 BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/fr/"
 DATE = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 SCRIPT_FILENAME = f"podcast_{DATE}.txt"
-INTRO_MUSIC_PATH = "/home/DanyWaks/Podcast/breaking-news-intro-logo-314320.mp3"
-OUTRO_MUSIC_PATH = "/home/DanyWaks/Podcast/breaking-news-intro-logo-314320.mp3"  # <- same file reused
-
+INTRO_MUSIC_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/breaking-news-intro-logo-314320.mp3"
 VOICE_ID = "TxGEqnHWrfWFTfGW9XjX"  # French voice
 
 HEADERS_11 = {
@@ -65,10 +63,9 @@ def generate_audio(text):
 
 # === Combine Audio ===
 def combine_audio(voice_audio_io):
-    intro = AudioSegment.from_mp3(INTRO_MUSIC_PATH)
-    outro = AudioSegment.from_mp3(OUTRO_MUSIC_PATH)
+    intro = AudioSegment.from_file(requests.get(INTRO_MUSIC_URL, stream=True).raw, format="mp3")
     voice = AudioSegment.from_file(voice_audio_io, format="mp3")
-    final_audio = intro + voice + outro
+    final_audio = intro + voice + intro
     output_io = BytesIO()
     final_audio.export(output_io, format="mp3")
     output_io.seek(0)
@@ -88,18 +85,18 @@ def generate_html():
   <body>
     <h1>{DATE} - French Gaming Podcast</h1>
     <audio controls>
-      <source src="final_podcast_fr_{DATE}.mp3" type="audio/mpeg">
+      <source src=\"final_podcast_fr_{DATE}.mp3\" type=\"audio/mpeg\">
     </audio>
   </body>
 </html>"""
 
 # === Generate RSS ===
 def generate_rss():
-    return f"""<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0"
-     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
-     xmlns:atom="http://www.w3.org/2005/Atom"
-     xmlns:podcast="https://podcastindex.org/namespace/1.0">
+    return f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<rss version=\"2.0\"
+     xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\"
+     xmlns:atom=\"http://www.w3.org/2005/Atom\"
+     xmlns:podcast=\"https://podcastindex.org/namespace/1.0\">
   <channel>
     <title>Daily Video Games Digest (French)</title>
     <link>{BASE_URL}</link>
@@ -109,16 +106,16 @@ def generate_rss():
     <itunes:summary>AI-generated daily gaming news in French.</itunes:summary>
     <itunes:explicit>no</itunes:explicit>
     <podcast:locked>yes</podcast:locked>
-    <itunes:image href="{BASE_URL}podcast-cover.png"/>
-    <itunes:category text="Technology"/>
-    <itunes:category text="Leisure">
-      <itunes:category text="Video Games"/>
+    <itunes:image href=\"{BASE_URL}podcast-cover.png\"/>
+    <itunes:category text=\"Technology\"/>
+    <itunes:category text=\"Leisure\">
+      <itunes:category text=\"Video Games\"/>
     </itunes:category>
     <item>
       <title>Daily Video Games Digest - {DATE}</title>
       <link>{BASE_URL}podcast_{DATE}.html</link>
       <description><![CDATA[Gaming news podcast in French, by Dany Waksman.]]></description>
-      <enclosure url="{BASE_URL}final_podcast_fr_{DATE}.mp3" type="audio/mpeg" />
+      <enclosure url=\"{BASE_URL}final_podcast_fr_{DATE}.mp3\" type=\"audio/mpeg\" />
       <guid>{BASE_URL}podcast_{DATE}.html</guid>
       <pubDate>{datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate>
       <itunes:author>Dany Waksman</itunes:author>
@@ -128,22 +125,22 @@ def generate_rss():
 
 # === Main ===
 def main():
-    print("📥 Fetching English script...")
+    print("\U0001F4E5 Fetching English script...")
     script = fetch_english_script()
 
-    print("🧠 Translating to French...")
+    print("\U0001F9E0 Translating to French...")
     translated = translate_text(script)
 
-    print("🔊 Generating voice audio...")
+    print("\U0001F50A Generating voice audio...")
     voice_mp3 = generate_audio(translated)
 
-    print("🎵 Combining with intro/outro...")
+    print("\U0001F3B5 Combining with intro/outro...")
     final_audio_io = combine_audio(voice_mp3)
 
     print("☁️ Uploading MP3...")
     upload_to_pythonanywhere(f"final_podcast_fr_{DATE}.mp3", final_audio_io)
 
-    print("📝 Uploading HTML...")
+    print("📜 Uploading HTML...")
     html = generate_html()
     upload_to_pythonanywhere(f"podcast_{DATE}.html", BytesIO(html.encode("utf-8")))
 
