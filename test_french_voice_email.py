@@ -14,7 +14,6 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 PYTHONANYWHERE_USERNAME = os.getenv("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.getenv("PYTHONANYWHERE_API_TOKEN")
 
-BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/fr/"
 DATE = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 SCRIPT_FILENAME = f"podcast_{DATE}.txt"
 INTRO_MUSIC_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/breaking-news-intro-logo-314320.mp3"
@@ -30,6 +29,12 @@ HEADERS_PY = {
     "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
 }
 
+LANGUAGES = {
+    "es": "Spanish",
+    "pt": "Portuguese",
+    "ja": "Japanese"
+}
+
 # === Download English script ===
 def fetch_english_script():
     url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/en/{SCRIPT_FILENAME}"
@@ -39,11 +44,10 @@ def fetch_english_script():
     else:
         raise Exception(f"Failed to fetch English script: {response.text}")
 
-
 # === Translate ===
-def translate_text(text):
+def translate_text(text, language):
     prompt = (
-        f"Translate this podcast script into French with a natural, local tone. "
+        f"Translate this podcast script into {language} with a natural, local tone. "
         f"The tone should be engaging, enthusiastic, and sound like it's being read in a casual podcast. "
         f"Preserve the spirit and energy of the original English content.\n\n{text}"
     )
@@ -52,7 +56,6 @@ def translate_text(text):
         messages=[{"role": "user", "content": prompt}]
     )
     return response.choices[0].message.content.strip()
-
 
 # === ElevenLabs TTS ===
 def generate_audio(text):
@@ -73,16 +76,11 @@ def generate_audio(text):
 
 # === Combine Audio with loudnorm ===
 def combine_audio(voice_audio_io):
-    import subprocess
-    import tempfile
-
-    # Download intro music
     intro_response = requests.get(INTRO_MUSIC_URL)
     if intro_response.status_code != 200:
         raise Exception(f"Failed to download intro music: {intro_response.status_code} – {intro_response.text}")
     intro_audio = BytesIO(intro_response.content)
 
-    # Save voice audio to temp file for loudnorm normalization
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_raw:
         temp_raw.write(voice_audio_io.read())
         temp_raw.flush()
@@ -91,12 +89,11 @@ def combine_audio(voice_audio_io):
             subprocess.run([
                 "ffmpeg", "-y",
                 "-i", temp_raw.name,
-                "-ar", "44100",  # explicitly downsample to safe rate
+                "-ar", "44100",
                 "-af", "loudnorm",
                 temp_norm.name
             ], check=True)
 
-            # Load normalized audio into memory
             normalized_voice = AudioSegment.from_wav(temp_norm.name)
 
     intro = AudioSegment.from_file(intro_audio, format="mp3")
@@ -107,80 +104,67 @@ def combine_audio(voice_audio_io):
     output_io.seek(0)
     return output_io
 
-
 # === Upload to PythonAnywhere ===
-def upload_to_pythonanywhere(filename, fileobj):
-    url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/fr/{filename}"
-
+def upload_to_pythonanywhere(filename, fileobj, lang_code):
+    url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{lang_code}/{filename}"
     fileobj.seek(0, os.SEEK_END)
-    size_kb = fileobj.tell() / 1024
+    print(f"📁 Preparing to upload: {filename} ({fileobj.tell() / 1024:.1f} KB)")
     fileobj.seek(0)
-    print(f"📁 Preparing to upload: {filename} ({size_kb:.1f} KB)")
 
     max_retries = 3
     for attempt in range(1, max_retries + 1):
-        print(f"🔁 Attempt {attempt} of {max_retries} to upload {filename}...")
+        print(f"🔁 Attempt {attempt} to upload {filename}...")
         response = requests.post(url, headers=HEADERS_PY, files={"content": fileobj})
-
         if response.status_code == 200:
-            print(f"✅ Successfully uploaded {filename} to PythonAnywhere.")
+            print(f"✅ Uploaded {filename} to PythonAnywhere.")
             return
-
-        print(f"⚠️ Upload failed (HTTP {response.status_code}).")
-        print(f"📄 Response body: {response.text or '[empty]'}")
-
-        if response.status_code == 413:
-            print("❌ File too large to upload via API.")
-            break
-        elif response.status_code in [401, 403]:
-            print("❌ Authentication or permission error. Check API token and username.")
-            break
-        elif attempt < max_retries:
-            print("⏳ Retrying after 2 seconds...")
+        print(f"⚠️ Upload failed ({response.status_code}): {response.text or '[empty]'}")
+        if attempt < max_retries:
             time.sleep(2)
             fileobj.seek(0)
         else:
-            raise Exception(f"❌ Final attempt failed to upload {filename}.")
+            raise Exception(f"❌ Failed after 3 attempts: {filename}")
 
 # === Generate HTML page ===
-def generate_html():
+def generate_html(lang_code):
     return f"""<html>
-  <head><title>{DATE} - French Gaming Podcast</title></head>
+  <head><title>{DATE} - {LANGUAGES[lang_code]} Gaming Podcast</title></head>
   <body>
-    <h1>{DATE} - French Gaming Podcast</h1>
+    <h1>{DATE} - {LANGUAGES[lang_code]} Gaming Podcast</h1>
     <audio controls>
-      <source src=\"final_podcast_fr_{DATE}.mp3\" type=\"audio/mpeg\">
+      <source src=\"final_podcast_{lang_code}_{DATE}.mp3\" type=\"audio/mpeg\">
     </audio>
   </body>
 </html>"""
 
 # === Generate RSS ===
-def generate_rss():
+def generate_rss(lang_code):
+    base_url = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/{lang_code}/"
     return f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <rss version=\"2.0\"
      xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\"
      xmlns:atom=\"http://www.w3.org/2005/Atom\"
      xmlns:podcast=\"https://podcastindex.org/namespace/1.0\">
   <channel>
-    <title>Daily Video Games Digest (French)</title>
-    <link>{BASE_URL}</link>
-    <language>fr-fr</language>
-    <description>Daily video game news podcast in French.</description>
+    <title>Daily Video Games Digest ({LANGUAGES[lang_code]})</title>
+    <link>{base_url}</link>
+    <language>{lang_code}</language>
+    <description>Daily video game news podcast in {LANGUAGES[lang_code]}.</description>
     <itunes:author>Dany Waksman</itunes:author>
-    <itunes:summary>AI-generated daily gaming news in French.</itunes:summary>
+    <itunes:summary>AI-generated daily gaming news in {LANGUAGES[lang_code]}.</itunes:summary>
     <itunes:explicit>no</itunes:explicit>
     <podcast:locked>yes</podcast:locked>
-    <itunes:image href=\"{BASE_URL}podcast-cover.png\"/>
+    <itunes:image href=\"{base_url}podcast-cover.png\"/>
     <itunes:category text=\"Technology\"/>
     <itunes:category text=\"Leisure\">
       <itunes:category text=\"Video Games\"/>
     </itunes:category>
     <item>
       <title>Daily Video Games Digest - {DATE}</title>
-      <link>{BASE_URL}podcast_{DATE}.html</link>
-      <description><![CDATA[Gaming news podcast in French, by Dany Waksman.]]></description>
-      <enclosure url=\"{BASE_URL}final_podcast_fr_{DATE}.mp3\" type=\"audio/mpeg\" />
-      <guid>{BASE_URL}podcast_{DATE}.html</guid>
+      <link>{base_url}podcast_{DATE}.html</link>
+      <description><![CDATA[Gaming news podcast in {LANGUAGES[lang_code]}, by Dany Waksman.]]></description>
+      <enclosure url=\"{base_url}final_podcast_{lang_code}_{DATE}.mp3\" type=\"audio/mpeg\" />
+      <guid>{base_url}podcast_{DATE}.html</guid>
       <pubDate>{datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate>
       <itunes:author>Dany Waksman</itunes:author>
     </item>
@@ -192,27 +176,28 @@ def main():
     print("📥 Fetching English script...")
     script = fetch_english_script()
 
-    print("🧠 Translating to French...")
-    translated = translate_text(script)
+    for lang_code, language in LANGUAGES.items():
+        print(f"\n🌍 Translating to {language}...")
+        translated = translate_text(script, language)
 
-    print("🔊 Generating voice audio...")
-    voice_mp3 = generate_audio(translated)
+        print("🔊 Generating voice audio...")
+        voice_mp3 = generate_audio(translated)
 
-    print("🎵 Combining with intro/outro...")
-    final_audio_io = combine_audio(voice_mp3)
+        print("🎵 Combining with intro/outro...")
+        final_audio_io = combine_audio(voice_mp3)
 
-    print("☁️ Uploading MP3...")
-    upload_to_pythonanywhere(f"final_podcast_fr_{DATE}.mp3", final_audio_io)
+        print("☁️ Uploading MP3...")
+        upload_to_pythonanywhere(f"final_podcast_{lang_code}_{DATE}.mp3", final_audio_io, lang_code)
 
-    print("📜 Uploading HTML...")
-    html = generate_html()
-    upload_to_pythonanywhere(f"podcast_{DATE}.html", BytesIO(html.encode("utf-8")))
+        print("📜 Uploading HTML...")
+        html = generate_html(lang_code)
+        upload_to_pythonanywhere(f"podcast_{DATE}.html", BytesIO(html.encode("utf-8")), lang_code)
 
-    print("📡 Uploading RSS...")
-    rss = generate_rss()
-    upload_to_pythonanywhere(f"rss_fr.xml", BytesIO(rss.encode("utf-8")))
+        print("📡 Uploading RSS...")
+        rss = generate_rss(lang_code)
+        upload_to_pythonanywhere(f"rss_{lang_code}.xml", BytesIO(rss.encode("utf-8")), lang_code)
 
-    print("✅ French version published!")
+        print(f"✅ {language} version published!")
 
 if __name__ == "__main__":
     main()
