@@ -13,7 +13,7 @@ SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 APP_PASSWORD = os.getenv("APP_PASSWORD")
 RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
 
-# === Request payload ===
+# === Text for TTS ===
 french_text = (
     "Bonjour à tous et bienvenue dans notre podcast quotidien sur les jeux vidéo ! "
     "Voici les actualités les plus passionnantes d'aujourd'hui."
@@ -33,7 +33,7 @@ headers = {
     "Content-Type": "application/json"
 }
 
-# === Send request ===
+# === Request to ElevenLabs ===
 print("🎙️ Sending request to ElevenLabs...")
 url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
 response = requests.post(url, headers=headers, json=payload)
@@ -43,19 +43,19 @@ if response.status_code != 200:
     exit()
 
 print("✅ TTS audio received.")
-audio_bytes = BytesIO(response.content)
-audio_bytes.seek(0)
+audio_io = BytesIO(response.content)
+audio_io.seek(0)
 
-# === Send email with in-memory attachment ===
-print("📧 Preparing to send email with attachment...")
+# === Send email with audio attachment ===
+print("📧 Sending email with attachment...")
 yag = yagmail.SMTP(SENDER_EMAIL, APP_PASSWORD)
 
 try:
     yag.send(
         to=RECIPIENT_EMAIL,
-        subject=f"🎧 French Voice Test – {datetime.now().strftime('%B %d')}",
-        contents="Attached is the French test audio using your ElevenLabs voice.",
-        attachments=[("test_french_voice.mp3", audio_bytes)]
+        subject=f"🎧 French Voice Test – {datetime.now().strftime('%B %d, %Y')}",
+        contents="Here is the test audio in French using your cloned ElevenLabs voice.",
+        attachments=[yagmail.inline(audio_io, filename="test_french_voice.mp3")]
     )
     print("✅ Email sent successfully.")
 except Exception as e:
