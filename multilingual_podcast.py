@@ -4,6 +4,9 @@ import openai
 from datetime import datetime, timezone
 from pydub import AudioSegment
 from io import BytesIO
+import subprocess
+import tempfile
+import time
 
 # === Configuration ===
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -36,21 +39,27 @@ def fetch_english_script():
     else:
         raise Exception(f"Failed to fetch English script: {response.text}")
 
+
 # === Translate ===
 def translate_text(text):
-    prompt = f"Translate this podcast script into French with a natural, local tone:\n\n{text}"
+    prompt = (
+        f"Translate this podcast script into French with a natural, local tone. "
+        f"The tone should be engaging, enthusiastic, and sound like it's being read in a casual podcast. "
+        f"Preserve the spirit and energy of the original English content.\n\n{text}"
+    )
     response = client.chat.completions.create(
         model="gpt-4-turbo",
         messages=[{"role": "user", "content": prompt}]
     )
     return response.choices[0].message.content.strip()
 
+
 # === ElevenLabs TTS ===
 def generate_audio(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
     payload = {
         "text": text,
-        "model_id": "eleven_multilingual_v2",
+        "model_id": MODEL_ID,
         "voice_settings": {
             "stability": 0.4,
             "similarity_boost": 0.75
@@ -62,17 +71,36 @@ def generate_audio(text):
     else:
         raise Exception(f"TTS failed: {response.text}")
 
-# === Combine Audio ===
-
+# === Combine Audio with loudnorm ===
 def combine_audio(voice_audio_io):
+    import subprocess
+    import tempfile
+
+    # Download intro music
     intro_response = requests.get(INTRO_MUSIC_URL)
     if intro_response.status_code != 200:
         raise Exception(f"Failed to download intro music: {intro_response.status_code} – {intro_response.text}")
-    
     intro_audio = BytesIO(intro_response.content)
+
+    # Save voice audio to temp file for loudnorm normalization
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_raw:
+        temp_raw.write(voice_audio_io.read())
+        temp_raw.flush()
+
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_norm:
+            subprocess.run([
+                "ffmpeg", "-y",
+                "-i", temp_raw.name,
+                "-ar", "44100",  # explicitly downsample to safe rate
+                "-af", "loudnorm",
+                temp_norm.name
+            ], check=True)
+
+            # Load normalized audio into memory
+            normalized_voice = AudioSegment.from_wav(temp_norm.name)
+
     intro = AudioSegment.from_file(intro_audio, format="mp3")
-    voice = AudioSegment.from_file(voice_audio_io, format="mp3")
-    final_audio = intro + voice + intro
+    final_audio = intro + normalized_voice + intro
 
     output_io = BytesIO()
     final_audio.export(output_io, format="mp3")
@@ -80,27 +108,24 @@ def combine_audio(voice_audio_io):
     return output_io
 
 
-import time
-
+# === Upload to PythonAnywhere ===
 def upload_to_pythonanywhere(filename, fileobj):
     url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/fr/{filename}"
-    
-    # Rewind the file-like object in case it's been read already
+
     fileobj.seek(0, os.SEEK_END)
     size_kb = fileobj.tell() / 1024
     fileobj.seek(0)
-
     print(f"📁 Preparing to upload: {filename} ({size_kb:.1f} KB)")
 
     max_retries = 3
     for attempt in range(1, max_retries + 1):
         print(f"🔁 Attempt {attempt} of {max_retries} to upload {filename}...")
         response = requests.post(url, headers=HEADERS_PY, files={"content": fileobj})
-        
+
         if response.status_code == 200:
             print(f"✅ Successfully uploaded {filename} to PythonAnywhere.")
             return
-        
+
         print(f"⚠️ Upload failed (HTTP {response.status_code}).")
         print(f"📄 Response body: {response.text or '[empty]'}")
 
@@ -113,10 +138,9 @@ def upload_to_pythonanywhere(filename, fileobj):
         elif attempt < max_retries:
             print("⏳ Retrying after 2 seconds...")
             time.sleep(2)
-            fileobj.seek(0)  # rewind before retry
+            fileobj.seek(0)
         else:
             raise Exception(f"❌ Final attempt failed to upload {filename}.")
-
 
 # === Generate HTML page ===
 def generate_html():
@@ -165,16 +189,16 @@ def generate_rss():
 
 # === Main ===
 def main():
-    print("\U0001F4E5 Fetching English script...")
+    print("📥 Fetching English script...")
     script = fetch_english_script()
 
-    print("\U0001F9E0 Translating to French...")
+    print("🧠 Translating to French...")
     translated = translate_text(script)
 
-    print("\U0001F50A Generating voice audio...")
+    print("🔊 Generating voice audio...")
     voice_mp3 = generate_audio(translated)
 
-    print("\U0001F3B5 Combining with intro/outro...")
+    print("🎵 Combining with intro/outro...")
     final_audio_io = combine_audio(voice_mp3)
 
     print("☁️ Uploading MP3...")
