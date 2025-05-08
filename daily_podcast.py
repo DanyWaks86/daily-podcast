@@ -300,6 +300,21 @@ if not script:
     print("❌ Failed to generate script.")
     exit()
 
+# Save English script to PythonAnywhere for multilingual use
+print("📤 Uploading English script to PythonAnywhere...")
+try:
+    headers = {"Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"}
+    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/en/podcast_{TODAY}.txt"
+    response = requests.post(upload_url, headers=headers, files={"content": script.encode("utf-8")})
+    if response.status_code == 200:
+        print("✅ English script uploaded successfully to /Podcast/en/")
+    else:
+        print(f"⚠️ Failed to upload English script: {response.status_code} - {response.text}")
+except Exception as e:
+    print(f"❌ Exception during English script upload: {e}")
+
+
+
 print("🎙️ Converting script to audio...")
 audio_data = text_to_speech(script)
 if not audio_data:
