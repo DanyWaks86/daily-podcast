@@ -15,7 +15,7 @@ BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/fr/"
 DATE = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 SCRIPT_FILENAME = f"podcast_{DATE}.txt"
 INTRO_MUSIC_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/breaking-news-intro-logo-314320.mp3"
-VOICE_ID = "TxGEqnHWrfWFTfGW9XjX"  # French voice
+VOICE_ID = "pNInz6obpgDQGcFmaJgB"  # Adam (free male voice- my voice was"TxGEqnHWrfWFTfGW9XjX")
 
 HEADERS_11 = {
     "xi-api-key": ELEVENLABS_API_KEY,
@@ -67,8 +67,8 @@ def combine_audio(voice_audio_io):
     intro_response = requests.get(INTRO_MUSIC_URL)
     if intro_response.status_code != 200:
         raise Exception(f"Failed to download intro music: {intro_response.status_code} – {intro_response.text}")
+    
     intro_audio = BytesIO(intro_response.content)
-
     intro = AudioSegment.from_file(intro_audio, format="mp3")
     voice = AudioSegment.from_file(voice_audio_io, format="mp3")
     final_audio = intro + voice + intro
@@ -77,7 +77,6 @@ def combine_audio(voice_audio_io):
     final_audio.export(output_io, format="mp3")
     output_io.seek(0)
     return output_io
-
 
 
 import time
