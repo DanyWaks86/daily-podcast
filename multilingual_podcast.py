@@ -15,7 +15,8 @@ BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/fr/"
 DATE = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 SCRIPT_FILENAME = f"podcast_{DATE}.txt"
 INTRO_MUSIC_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/breaking-news-intro-logo-314320.mp3"
-VOICE_ID = "pNInz6obpgDQGcFmaJgB"  # Adam (free male voice- my voice was"TxGEqnHWrfWFTfGW9XjX")
+VOICE_ID = "Av6SEi7Xo7fWEjACu6Pr"
+MODEL_ID = "eleven_multilingual_v2"
 
 HEADERS_11 = {
     "xi-api-key": ELEVENLABS_API_KEY,
