@@ -145,9 +145,9 @@ def upload_to_pythonanywhere(filename, fileobj):
 # === Generate HTML page ===
 def generate_html():
     return f"""<html>
-  <head><title>{DATE} - French Gaming Podcast</title></head>
+  <head><title>{DATE} - La Minute Gaming</title></head>
   <body>
-    <h1>{DATE} - French Gaming Podcast</h1>
+    <h1>{DATE} - Podcast Jeux Videos</h1>
     <audio controls>
       <source src=\"final_podcast_fr_{DATE}.mp3\" type=\"audio/mpeg\">
     </audio>
@@ -162,23 +162,23 @@ def generate_rss():
      xmlns:atom=\"http://www.w3.org/2005/Atom\"
      xmlns:podcast=\"https://podcastindex.org/namespace/1.0\">
   <channel>
-    <title>Daily Video Games Digest (French)</title>
+    <title>La Minute Gaming</title>
     <link>{BASE_URL}</link>
     <language>fr-fr</language>
-    <description>Daily video game news podcast in French.</description>
+    <description>Un podcast quotidien d'actualités gaming en français.</description>
     <itunes:author>Dany Waksman</itunes:author>
-    <itunes:summary>AI-generated daily gaming news in French.</itunes:summary>
+    <itunes:summary>La Minute Gaming — l'actu de jeux vidéos en français, générée par IA.</itunes:summary>
     <itunes:explicit>no</itunes:explicit>
     <podcast:locked>yes</podcast:locked>
-    <itunes:image href=\"{BASE_URL}podcast-cover.png\"/>
+    <itunes:image href=\"{BASE_URL}podcast-cover-fr.png\"/>
     <itunes:category text=\"Technology\"/>
     <itunes:category text=\"Leisure\">
       <itunes:category text=\"Video Games\"/>
     </itunes:category>
     <item>
-      <title>Daily Video Games Digest - {DATE}</title>
+      <title>La Minute Gaming - {DATE}</title>
       <link>{BASE_URL}podcast_{DATE}.html</link>
-      <description><![CDATA[Gaming news podcast in French, by Dany Waksman.]]></description>
+      <description><![CDATA[Podcast d'actualité jeux vidéos du jour, en français, présenté par Dany Waksman]]></description>
       <enclosure url=\"{BASE_URL}final_podcast_fr_{DATE}.mp3\" type=\"audio/mpeg\" />
       <guid>{BASE_URL}podcast_{DATE}.html</guid>
       <pubDate>{datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate>
