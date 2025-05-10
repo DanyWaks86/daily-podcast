@@ -127,42 +127,74 @@ def upload_to_pythonanywhere(filename, fileobj, lang_code):
 
 # === Generate HTML page ===
 def generate_html(lang_code):
+    titles = {
+        "es": "El Flash Del Gaming",
+        "pt": "Minuto Gamer",
+        "ja": "ゲーミング・ミニッツ"
+    }
+    title = titles.get(lang_code, f"{LANGUAGES.get(lang_code, lang_code)} Gaming Podcast")
+
     return f"""<html>
-  <head><title>{DATE} - {LANGUAGES[lang_code]} Gaming Podcast</title></head>
+  <head><title>{DATE} - {title}</title></head>
   <body>
-    <h1>{DATE} - {LANGUAGES[lang_code]} Gaming Podcast</h1>
+    <h1>{DATE} - {title}</h1>
     <audio controls>
-      <source src=\"final_podcast_{lang_code}_{DATE}.mp3\" type=\"audio/mpeg\">
+      <source src="final_podcast_{lang_code}_{DATE}.mp3" type="audio/mpeg">
     </audio>
   </body>
 </html>"""
 
+
 # === Generate RSS ===
 def generate_rss(lang_code):
     base_url = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/{lang_code}/"
+    cover_url = f"{base_url}podcast-cover-{lang_code}.png"
+
+    titles = {
+        "es": "El Flash Del Gaming",
+        "pt": "Minuto Gamer",
+        "ja": "ゲーミング・ミニッツ"
+    }
+
+    descriptions = {
+        "es": "Un podcast diario con las noticias más importantes del mundo de los videojuegos, en español.",
+        "pt": "Um podcast diário com as principais notícias do mundo dos videogames, em português.",
+        "ja": "毎日のゲーム業界ニュースを日本語でお届けするAI生成ポッドキャスト。"
+    }
+
+    summaries = {
+        "es": "El Flash Del Gaming — noticias rápidas del mundo gamer en español, generadas por IA.",
+        "pt": "Minuto Gamer — notícias rápidas do mundo gamer em português, geradas por IA.",
+        "ja": "ゲーミング・ミニッツ — 毎日配信、AIが読み上げる日本語のゲームニュース。"
+    }
+
+    title = titles.get(lang_code, f"Daily Video Games Digest ({LANGUAGES.get(lang_code, lang_code)})")
+    description = descriptions.get(lang_code, f"Daily video game news podcast in {LANGUAGES.get(lang_code, lang_code)}.")
+    summary = summaries.get(lang_code, f"AI-generated daily gaming news in {LANGUAGES.get(lang_code, lang_code)}.")
+
     return f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <rss version=\"2.0\"
      xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\"
      xmlns:atom=\"http://www.w3.org/2005/Atom\"
      xmlns:podcast=\"https://podcastindex.org/namespace/1.0\">
   <channel>
-    <title>Daily Video Games Digest ({LANGUAGES[lang_code]})</title>
+    <title>{title}</title>
     <link>{base_url}</link>
     <language>{lang_code}</language>
-    <description>Daily video game news podcast in {LANGUAGES[lang_code]}.</description>
+    <description>{description}</description>
     <itunes:author>Dany Waksman</itunes:author>
-    <itunes:summary>AI-generated daily gaming news in {LANGUAGES[lang_code]}.</itunes:summary>
+    <itunes:summary>{summary}</itunes:summary>
     <itunes:explicit>no</itunes:explicit>
     <podcast:locked>yes</podcast:locked>
-    <itunes:image href=\"{base_url}podcast-cover.png\"/>
+    <itunes:image href=\"{cover_url}\"/>
     <itunes:category text=\"Technology\"/>
     <itunes:category text=\"Leisure\">
       <itunes:category text=\"Video Games\"/>
     </itunes:category>
     <item>
-      <title>Daily Video Games Digest - {DATE}</title>
+      <title>{title} - {DATE}</title>
       <link>{base_url}podcast_{DATE}.html</link>
-      <description><![CDATA[Gaming news podcast in {LANGUAGES[lang_code]}, by Dany Waksman.]]></description>
+      <description><![CDATA[{description}]]></description>
       <enclosure url=\"{base_url}final_podcast_{lang_code}_{DATE}.mp3\" type=\"audio/mpeg\" />
       <guid>{base_url}podcast_{DATE}.html</guid>
       <pubDate>{datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate>
@@ -170,6 +202,7 @@ def generate_rss(lang_code):
     </item>
   </channel>
 </rss>"""
+
 
 # === Main ===
 def main():
