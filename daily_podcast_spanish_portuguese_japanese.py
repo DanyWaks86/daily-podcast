@@ -183,6 +183,10 @@ def generate_rss(lang_code):
     <language>{lang_code}</language>
     <description>{description}</description>
     <itunes:author>Dany Waksman</itunes:author>
+    <itunes:owner>
+      <itunes:name>Dany Waksman</itunes:name>
+      <itunes:email>dany.waksman@gmail.com</itunes:email>
+    </itunes:owner>
     <itunes:summary>{summary}</itunes:summary>
     <itunes:explicit>no</itunes:explicit>
     <podcast:locked>yes</podcast:locked>
