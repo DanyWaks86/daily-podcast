@@ -167,6 +167,10 @@ def generate_rss():
     <language>fr-fr</language>
     <description>Un podcast quotidien d'actualités gaming en français.</description>
     <itunes:author>Dany Waksman</itunes:author>
+    <itunes:owner>
+      <itunes:name>Dany Waksman</itunes:name>
+      <itunes:email>dany.waksman@gmail.com</itunes:email>
+    </itunes:owner>
     <itunes:summary>La Minute Gaming — l'actu de jeux vidéos en français, générée par IA.</itunes:summary>
     <itunes:explicit>no</itunes:explicit>
     <podcast:locked>yes</podcast:locked>
