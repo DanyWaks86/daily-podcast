@@ -62,7 +62,9 @@ def generate_audio(text):
         "model_id": MODEL_ID,
         "voice_settings": {
             "stability": 0.4,
-            "similarity_boost": 0.75
+            "similarity_boost": 1.0,
+            "style": 0.0,
+            "use_speaker_boost": True  # <-- Critical for fidelity
         }
     }
     response = requests.post(url, headers=HEADERS_11, json=payload)
