@@ -43,9 +43,12 @@ def fetch_english_script():
 # === Translate ===
 def translate_text(text):
     prompt = (
-        f"Translate this podcast script into French with a natural, local tone. "
-        f"The tone should be engaging, enthusiastic, and sound like it's being read in a casual podcast. "
-        f"Preserve the spirit and energy of the original English content.\n\n{text}"
+        "Translate the following podcast script into **natural, fluent French** with an **engaging, energetic, and enthusiastic tone**. "
+        "Imagine this is being read by a charismatic podcast host who is passionate about video games. "
+        "Use casual, dynamic expressions that sound natural to French-speaking listeners — like something you'd hear on a popular tech podcast. "
+        "Avoid overly formal language. Keep it fun, expressive, and conversational. "
+        "Maintain the energy, pacing, and excitement of the original English.\n\n"
+        f"{text}"
     )
     response = client.chat.completions.create(
         model="gpt-4-turbo",
