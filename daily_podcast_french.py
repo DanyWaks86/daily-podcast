@@ -43,11 +43,9 @@ def fetch_english_script():
 # === Translate ===
 def translate_text(text):
     prompt = (
-        "Translate the following podcast script into **natural, fluent French** with an **engaging, energetic, and enthusiastic tone**. "
-        "Imagine this is being read by a charismatic podcast host who is passionate about video games. "
-        "Use casual, dynamic expressions that sound natural to a French audience (from Paris, not Quebec). "
-        "Avoid overly formal language. Keep it fun, expressive, and conversational. "
-        "Maintain the energy, pacing, and excitement of the original English.\n\n"
+        "Translate the following podcast script into natural, fluent French with an engaging and enthusiastic tone. "
+        "Write as if you're a popular French-speaking podcast host from Paris. Use casual, expressive language that sounds natural to French listeners. "
+        "Keep the energy high and the phrasing conversational. Do not over-formalize.\n\n"
         f"{text}"
     )
     response = client.chat.completions.create(
@@ -55,7 +53,6 @@ def translate_text(text):
         messages=[{"role": "user", "content": prompt}]
     )
     return response.choices[0].message.content.strip()
-
 
 # === ElevenLabs TTS ===
 def generate_audio(text):
@@ -78,8 +75,6 @@ def generate_audio(text):
 
 # === Combine Audio with loudnorm ===
 def combine_audio(voice_audio_io):
-    import subprocess
-    import tempfile
 
     # Download intro music
     intro_response = requests.get(INTRO_MUSIC_URL)
@@ -247,4 +242,7 @@ def main():
     print("✅ French version published!")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"❌ Fatal error: {e}")
