@@ -59,14 +59,16 @@ def fetch_rss_articles_txt():
     return response.text
 
 def generate_script_from_text(rss_text):
-    prompt = f"""You are generating a daily podcast script based on real gaming news articles. Follow these rules carefully:
+prompt = f"""You are generating a daily podcast script based on real gaming news articles. Follow these rules carefully:
 
 1. Carefully read the articles provided.
-2. Select and summarize only the **6 most important or impactful stories**.
-3. For each story, **mention the news source** naturally (e.g., \"according to IGN\").
-4. Write in a **natural, casual podcast tone**, as if you are personally telling listeners the day's biggest stories.
-5. **Do not** use any headers like \"Story 1\" or Markdown formatting.
-6. Focus on **delivering a tight and engaging podcast script that lasts approximately 4–5 minutes** total.
+2. Select and summarize only the **6 most important or impactful stories** from the list.
+3. For each story, **mention the news source** naturally (e.g., "according to IGN").
+4. Write in a **natural, casual, and enthusiastic podcast tone**, as if you're a charismatic host personally sharing the day's biggest gaming news.
+5. Use **engaging, energetic, and expressive language** — something you'd hear on a popular gaming or tech podcast.
+6. Keep it **fun, dynamic, and conversational** — avoid robotic or overly formal phrasing.
+7. **Do not** use headers like "Story 1" or Markdown formatting.
+8. Aim for a **tight and captivating script** that runs around **4–5 minutes** total.
 
 Start the podcast script with this exact intro:
 \"Welcome to the Daily Video Games Digest. I'm Dany Waksman, a video game enthusiast, bringing you this AI-generated podcast to stay informed with the latest in the gaming world. Let's jump right into yesterday’s biggest stories, {datetime.now().strftime('%B %d')}.”
@@ -118,7 +120,7 @@ def text_to_speech(text):
         "voice_settings": {
             "stability": 0.4,
             "similarity_boost": 1.0,
-            "style": 0.0,
+            "style": 0.7,
             "use_speaker_boost": True  # <-- Critical for fidelity
         },
         "output_format": "wav"
