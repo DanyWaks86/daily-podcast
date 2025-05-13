@@ -87,23 +87,24 @@ Here are the real articles:
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7
     }
-  try:
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
-    response.raise_for_status()  # Raise error for 4xx/5xx
 
-    result = response.json()
-    usage = result.get("usage", {})
-    print(f"✅ Prompt tokens: {usage.get('prompt_tokens')}, Completion tokens: {usage.get('completion_tokens')}")
+    try:
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+        response.raise_for_status()  # Raise error for 4xx/5xx
 
-    script_text = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-    return script_text, None
+        result = response.json()
+        usage = result.get("usage", {})
+        print(f"✅ Prompt tokens: {usage.get('prompt_tokens')}, Completion tokens: {usage.get('completion_tokens')}")
 
-except requests.exceptions.HTTPError as http_err:
-    print(f"❌ HTTP error from OpenAI: {http_err} - Response: {response.text}")
-except Exception as e:
-    print(f"❌ Other error from OpenAI: {e}")
+        script_text = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+        return script_text, None
 
-return None, "Failed to generate script"
+    except requests.exceptions.HTTPError as http_err:
+        print(f"❌ HTTP error from OpenAI: {http_err} - Response: {response.text}")
+    except Exception as e:
+        print(f"❌ Other error from OpenAI: {e}")
+
+    return None, "Failed to generate script"
 
 def text_to_speech(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
