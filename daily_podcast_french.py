@@ -45,7 +45,7 @@ def translate_text(text):
     prompt = (
         "Translate the following podcast script into **natural, fluent French** with an **engaging, energetic, and enthusiastic tone**. "
         "Imagine this is being read by a charismatic podcast host who is passionate about video games. "
-        "Use casual, dynamic expressions that sound natural to French-speaking listeners — like something you'd hear on a popular tech podcast. "
+        "Use casual, dynamic expressions that sound natural to a French audience (from Paris, not Quebec). "
         "Avoid overly formal language. Keep it fun, expressive, and conversational. "
         "Maintain the energy, pacing, and excitement of the original English.\n\n"
         f"{text}"
@@ -62,11 +62,11 @@ def generate_audio(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
     payload = {
         "text": text,
-        "model_id": MODEL_ID,
+        "model_id": "eleven_multilingual_v2", 
         "voice_settings": {
             "stability": 0.4,
-            "similarity_boost": 1.0,
-            "style": 0.7,
+            "similarity_boost": 0.9,
+            "style": 0.8,
             "use_speaker_boost": True  # <-- Critical for fidelity
         }
     }
