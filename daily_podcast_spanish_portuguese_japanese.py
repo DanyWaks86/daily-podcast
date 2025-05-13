@@ -46,14 +46,14 @@ def fetch_english_script():
 
 # === Translate ===
 def translate_text(text, language):
-prompt = (
-    f"Translate the following podcast script into **natural, fluent {language}** with an **engaging, energetic, and conversational tone**. "
-    f"Imagine it's being read aloud by a charismatic podcast host who’s passionate about video games. "
-    f"Use casual, expressive, and dynamic language — like something you'd hear on a popular local gaming podcast. "
-    f"Preserve the spirit, rhythm, and excitement of the original English content. "
-    f"Avoid stiff or overly formal phrasing — make it sound authentic and fun for native {language} listeners.\n\n"
-    f"{text}"
-)
+    prompt = (
+        f"Translate the following podcast script into **natural, fluent {language}** with an **engaging, energetic, and conversational tone**. "
+        f"Imagine it's being read aloud by a charismatic podcast host who’s passionate about video games. "
+        f"Use casual, expressive, and dynamic language — like something you'd hear on a popular local gaming podcast. "
+        f"Preserve the spirit, rhythm, and excitement of the original English content. "
+        f"Avoid stiff or overly formal phrasing — make it sound authentic and fun for native {language} listeners.\n\n"
+        f"{text}"
+    )
 
     response = client.chat.completions.create(
         model="gpt-4-turbo",
@@ -152,8 +152,10 @@ def generate_html(lang_code):
 
 
 # === Generate RSS ===
-def generate_rss(lang_code):
+def update_rss(lang_code):
     base_url = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/{lang_code}/"
+    rss_filename = f"rss_{lang_code}.xml"
+    pub_date_formatted = datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')
     cover_url = f"{base_url}podcast-cover-{lang_code}.png"
 
     titles = {
@@ -178,11 +180,34 @@ def generate_rss(lang_code):
     description = descriptions.get(lang_code, f"Daily video game news podcast in {LANGUAGES.get(lang_code, lang_code)}.")
     summary = summaries.get(lang_code, f"AI-generated daily gaming news in {LANGUAGES.get(lang_code, lang_code)}.")
 
-    return f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<rss version=\"2.0\"
-     xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\"
-     xmlns:atom=\"http://www.w3.org/2005/Atom\"
-     xmlns:podcast=\"https://podcastindex.org/namespace/1.0\">
+    new_item = f"""
+    <item>
+      <title>{title} - {DATE}</title>
+      <link>{base_url}podcast_{DATE}.html</link>
+      <description><![CDATA[{description}]]></description>
+      <enclosure url="{base_url}final_podcast_{lang_code}_{DATE}.mp3" length="5000000" type="audio/mpeg" />
+      <guid>{base_url}podcast_{DATE}.html</guid>
+      <pubDate>{pub_date_formatted}</pubDate>
+      <itunes:author>Dany Waksman</itunes:author>
+    </item>"""
+
+    # Try to fetch existing RSS from PythonAnywhere
+    url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{lang_code}/{rss_filename}"
+    response = requests.get(url, headers=HEADERS_PY)
+
+    if response.status_code == 200:
+        rss_content = response.text
+        if f"<guid>{base_url}podcast_{DATE}.html</guid>" in rss_content:
+            print("✅ Episode already in RSS.")
+            return
+        updated_rss = rss_content.replace("</channel>", f"{new_item}\n  </channel>")
+    else:
+        print("🆕 Creating new RSS from scratch.")
+        updated_rss = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+     xmlns:atom="http://www.w3.org/2005/Atom"
+     xmlns:podcast="https://podcastindex.org/namespace/1.0">
   <channel>
     <title>{title}</title>
     <link>{base_url}</link>
@@ -196,23 +221,17 @@ def generate_rss(lang_code):
     <itunes:summary>{summary}</itunes:summary>
     <itunes:explicit>no</itunes:explicit>
     <podcast:locked>yes</podcast:locked>
-    <itunes:image href=\"{cover_url}\"/>
-    <itunes:category text=\"Technology\"/>
-    <itunes:category text=\"Leisure\">
-      <itunes:category text=\"Video Games\"/>
+    <itunes:image href="{cover_url}"/>
+    <itunes:category text="Technology"/>
+    <itunes:category text="Leisure">
+      <itunes:category text="Video Games"/>
     </itunes:category>
-    <item>
-      <title>{title} - {DATE}</title>
-      <link>{base_url}podcast_{DATE}.html</link>
-      <description><![CDATA[{description}]]></description>
-      <enclosure url=\"{base_url}final_podcast_{lang_code}_{DATE}.mp3\" type=\"audio/mpeg\" />
-      <guid>{base_url}podcast_{DATE}.html</guid>
-      <pubDate>{datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate>
-      <itunes:author>Dany Waksman</itunes:author>
-    </item>
+    <atom:link href="{base_url}{rss_filename}" rel="self" type="application/rss+xml"/>
+    {new_item}
   </channel>
 </rss>"""
 
+    upload_to_pythonanywhere(rss_filename, BytesIO(updated_rss.encode("utf-8")), lang_code)
 
 # === Main ===
 def main():
@@ -237,8 +256,8 @@ def main():
         upload_to_pythonanywhere(f"podcast_{DATE}.html", BytesIO(html.encode("utf-8")), lang_code)
 
         print("📡 Uploading RSS...")
-        rss = generate_rss(lang_code)
-        upload_to_pythonanywhere(f"rss_{lang_code}.xml", BytesIO(rss.encode("utf-8")), lang_code)
+        print("📡 Updating RSS feed...")
+        update_rss(lang_code)
 
         print(f"✅ {language} version published!")
 
