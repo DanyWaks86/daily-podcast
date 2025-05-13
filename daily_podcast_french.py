@@ -160,12 +160,38 @@ def generate_html():
 </html>"""
 
 # === Generate RSS ===
-def generate_rss():
-    return f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<rss version=\"2.0\"
-     xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\"
-     xmlns:atom=\"http://www.w3.org/2005/Atom\"
-     xmlns:podcast=\"https://podcastindex.org/namespace/1.0\">
+def update_rss():
+    rss_filename = "rss_fr.xml"
+    pub_date_formatted = datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')
+
+    new_item = f"""
+    <item>
+      <title>La Minute Gaming - {DATE}</title>
+      <link>{BASE_URL}podcast_{DATE}.html</link>
+      <description><![CDATA[Podcast d'actualité jeux vidéos du jour, en français, présenté par Dany Waksman. Lire les notes: {BASE_URL}podcast_{DATE}.html]]></description>
+      <enclosure url="{BASE_URL}final_podcast_fr_{DATE}.mp3" length="5000000" type="audio/mpeg" />
+      <guid>{BASE_URL}podcast_{DATE}.html</guid>
+      <pubDate>{pub_date_formatted}</pubDate>
+      <itunes:author>Dany Waksman</itunes:author>
+    </item>"""
+
+    # Try fetching existing RSS file from PythonAnywhere
+    url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/fr/{rss_filename}"
+    response = requests.get(url, headers=HEADERS_PY)
+
+    if response.status_code == 200:
+        rss_content = response.text
+        if f"<guid>{BASE_URL}podcast_{DATE}.html</guid>" in rss_content:
+            print("✅ Today's episode already in RSS.")
+            return
+        updated_rss = rss_content.replace("</channel>", f"{new_item}\n  </channel>")
+    else:
+        print("🆕 Creating new rss_fr.xml from scratch.")
+        updated_rss = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+     xmlns:atom="http://www.w3.org/2005/Atom"
+     xmlns:podcast="https://podcastindex.org/namespace/1.0">
   <channel>
     <title>La Minute Gaming</title>
     <link>{BASE_URL}</link>
@@ -179,22 +205,19 @@ def generate_rss():
     <itunes:summary>La Minute Gaming — l'actu de jeux vidéos en français, générée par IA.</itunes:summary>
     <itunes:explicit>no</itunes:explicit>
     <podcast:locked>yes</podcast:locked>
-    <itunes:image href=\"{BASE_URL}podcast-cover-fr.png\"/>
-    <itunes:category text=\"Technology\"/>
-    <itunes:category text=\"Leisure\">
-      <itunes:category text=\"Video Games\"/>
+    <itunes:image href="{BASE_URL}podcast-cover-fr.png"/>
+    <itunes:category text="Technology"/>
+    <itunes:category text="Leisure">
+      <itunes:category text="Video Games"/>
     </itunes:category>
-    <item>
-      <title>La Minute Gaming - {DATE}</title>
-      <link>{BASE_URL}podcast_{DATE}.html</link>
-      <description><![CDATA[Podcast d'actualité jeux vidéos du jour, en français, présenté par Dany Waksman]]></description>
-      <enclosure url=\"{BASE_URL}final_podcast_fr_{DATE}.mp3\" type=\"audio/mpeg\" />
-      <guid>{BASE_URL}podcast_{DATE}.html</guid>
-      <pubDate>{datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate>
-      <itunes:author>Dany Waksman</itunes:author>
-    </item>
+    <atom:link href="{BASE_URL}rss_fr.xml" rel="self" type="application/rss+xml"/>
+    {new_item}
   </channel>
 </rss>"""
+
+    # Upload updated RSS back to PythonAnywhere
+    upload_to_pythonanywhere(rss_filename, BytesIO(updated_rss.encode("utf-8")))
+
 
 # === Main ===
 def main():
@@ -218,8 +241,8 @@ def main():
     upload_to_pythonanywhere(f"podcast_{DATE}.html", BytesIO(html.encode("utf-8")))
 
     print("📡 Uploading RSS...")
-    rss = generate_rss()
-    upload_to_pythonanywhere(f"rss_fr.xml", BytesIO(rss.encode("utf-8")))
+    update_rss()
+
 
     print("✅ French version published!")
 
