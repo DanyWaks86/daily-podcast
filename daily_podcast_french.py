@@ -3,6 +3,7 @@ import requests
 import openai
 from datetime import datetime, timezone
 from pydub import AudioSegment
+from pydub.effects import speedup
 from io import BytesIO
 import subprocess
 import tempfile
@@ -98,9 +99,10 @@ def combine_audio(voice_audio_io):
 
             # Load normalized audio into memory
             normalized_voice = AudioSegment.from_wav(temp_norm.name)
+            faster_voice = speedup(normalized_voice, playback_speed=1.1)
 
     intro = AudioSegment.from_file(intro_audio, format="mp3")
-    final_audio = intro + normalized_voice + intro
+    final_audio = intro + faster_voice + intro
 
     output_io = BytesIO()
     final_audio.export(output_io, format="mp3")
