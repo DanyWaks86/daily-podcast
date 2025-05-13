@@ -63,7 +63,7 @@ def generate_audio(text):
         "voice_settings": {
             "stability": 0.4,
             "similarity_boost": 1.0,
-            "style": 0.0,
+            "style": 0.8,
             "use_speaker_boost": True  # <-- Critical for fidelity
         }
     }
