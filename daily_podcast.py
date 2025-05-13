@@ -66,7 +66,7 @@ def generate_script_from_text(rss_text):
 2. Select and summarize only the **6 most important or impactful stories** from the list.
 3. For each story, **mention the news source** naturally (e.g., "according to IGN").
 4. Write in a **natural, casual, and enthusiastic podcast tone**, make it sound like you are a charismatic Parisian host talking to an American audience and personally sharing the day's biggest gaming news.
-5. Use **engaging, energetic, and expressive language** — something you'd hear on a popular gaming or tech podcast.
+5. Use **engaging, energetic, and expressive language** — something you'd hear on a popular gaming or tech podcast. Include transitions words between each stories so it's clear when you are transitionning from one topic to another
 6. Keep it **fun, dynamic, and conversational** — avoid robotic or overly formal phrasing.
 7. **Do not** use headers like "Story 1" or Markdown formatting.
 8. Aim for a **tight and captivating script** that runs around **4–5 minutes** total.
