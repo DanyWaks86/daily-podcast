@@ -123,7 +123,7 @@ def text_to_speech(text):
         "model_id": "eleven_multilingual_v2",  # <-- Explicitly use the new model
         "voice_settings": {
             "stability": 0.7,
-            "similarity_boost": 0.7,
+            "similarity_boost": 0.6,
             "style": 0.4,
             "use_speaker_boost": True  # <-- Critical for fidelity
         },
