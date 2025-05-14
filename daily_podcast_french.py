@@ -83,9 +83,9 @@ def generate_audio(text):
             "text": segment,
             "model_id": MODEL_ID,
             "voice_settings": {
-                "stability": 0.7,
-                "similarity_boost": 0.6,
-                "style": 0.4,
+                "stability": 0.4,
+                "similarity_boost": 0.85,
+                "style": 0.5,
                 "use_speaker_boost": True
             }
         }
@@ -97,7 +97,7 @@ def generate_audio(text):
             raise Exception(f"TTS failed at segment {idx+1}: {response.text}")
 
         audio_segment = AudioSegment.from_file(BytesIO(response.content), format="mp3")
-        combined_audio += audio_segment + AudioSegment.silent(duration=200)
+        combined_audio += audio_segment + AudioSegment.silent(duration=100)
 
     output_io = BytesIO()
     combined_audio.export(output_io, format="mp3")
