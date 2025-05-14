@@ -62,17 +62,19 @@ def fetch_rss_articles_txt():
 def generate_script_from_text(rss_text):
     prompt = f"""You are generating a daily podcast script based on real gaming news articles. Follow these rules carefully:
 
-1. Carefully read the articles provided.
-2. Select and summarize only the **6 most important or impactful stories** from the list.
+1. Carefully read and understand the articles provided.
+2. Select and summarize only the **6 most important or impactful stories**.
 3. For each story, **mention the news source** naturally (e.g., "according to IGN").
-4. Write in a **natural, casual, and enthusiastic podcast tone**, make it sound like you are a charismatic Parisian host talking to an American audience and personally sharing the day's biggest gaming news.
-5. Use **engaging, energetic, and expressive language** — something you'd hear on a popular gaming or tech podcast. Include transitions words between each stories so it's clear when you are transitionning from one topic to another
-6. Keep it **fun, dynamic, and conversational** — avoid robotic or overly formal phrasing.
-7. **Do not** use headers like "Story 1" or Markdown formatting.
-8. Aim for a **tight and captivating script** that runs around **4–5 minutes** total.
+4. Write in a **natural, casual, and enthusiastic tone**, as if you're an American podcast host who’s passionate about gaming and personally sharing the day's highlights.
+5. Use **engaging, expressive language** that feels like it belongs on a top gaming or tech podcast — fun, clear, and confident.
+6. Add **smooth transitions** between each story to help listeners follow along.
+7. Avoid robotic phrasing, formal structures, or any foreign language inserts — keep the script clean and fluent in natural American English.
+8. **Do not** use headers like "Story 1" or Markdown formatting.
+9. Aim for a **tight, energetic script** that runs around **4–5 minutes** when read aloud.
 
 Start the podcast script with this exact intro:
-"Welcome to the Daily Video Games Digest. I'm Dany Waksman, a video game enthusiast, bringing you this AI-generated podcast to stay informed with the latest in the gaming world. Let's jump right into yesterday’s biggest stories, {datetime.now().strftime('%B %d')}.”
+"Welcome to the Daily Video Games Digest. I'm Dany Waksman, a video game enthusiast, bringing you this AI-generated podcast to stay informed with the latest in the gaming world. Let's jump right into yesterday’s biggest stories, {(datetime.now() - timedelta(days=1)).strftime('%B %d')}.”
+
 
 End the podcast script with this exact outro:
 "Thanks for tuning into the Daily Video Games Digest. If you enjoyed today’s update, be sure to check back tomorrow for the latest in gaming news. Until then, happy gaming!"
