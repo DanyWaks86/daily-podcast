@@ -1,7 +1,7 @@
 import os
 import requests
 import openai
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydub import AudioSegment
 from io import BytesIO
 import subprocess
@@ -41,18 +41,37 @@ def fetch_english_script():
 
 
 # === Translate ===
+from datetime import datetime, timedelta
+
 def translate_text(text):
+    # Remove the fixed English intro (always line 1)
+    lines = text.strip().split('\n')
+    body_only = '\n'.join(lines[1:]).strip()
+
+    # Your fixed French intro
+    french_intro = (
+        f"Bienvenue dans la Minute Gaming. Je suis Dany Waksman, un passionné de jeux vidéo et chaque jour je vous accompagne "
+        f"pour rester informé des dernières nouvelles du monde des jeux vidéo grace a ce podcast généré automatiquement par intelligence artificielle. "
+        f"C'est parti, on se lance avec le récap des actualités d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n\n"
+    )
+
+    # Translation prompt for the rest of the script
     prompt = (
         "Translate the following podcast script into natural, fluent French with an engaging and enthusiastic tone. "
         "Write as if you're a popular French-speaking podcast host from Paris. Use casual, expressive language that sounds natural to French listeners. "
         "Keep the energy high and the phrasing conversational. Do not over-formalize.\n\n"
-        f"{text}"
+        f"{body_only}"
     )
+
     response = client.chat.completions.create(
         model="gpt-4-turbo",
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.choices[0].message.content.strip()
+
+    translated_body = response.choices[0].message.content.strip()
+
+    return french_intro + translated_body
+
 
 # === ElevenLabs TTS ===
 def generate_audio(text):
