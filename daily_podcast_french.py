@@ -80,9 +80,9 @@ def generate_audio(text):
         "text": text,
         "model_id": "eleven_multilingual_v2", 
         "voice_settings": {
-            "stability": 0.4,
-            "similarity_boost": 0.8,
-            "style": 0.6,
+            "stability": 0.7,
+            "similarity_boost": 0.6,
+            "style": 0.4,
             "use_speaker_boost": True  # <-- Critical for fidelity
         }
     }
