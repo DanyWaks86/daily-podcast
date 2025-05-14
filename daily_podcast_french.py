@@ -57,9 +57,10 @@ def translate_text(text):
 
     # Translation prompt for the rest of the script
     prompt = (
-        "Translate the following podcast script into natural, fluent French with an engaging and enthusiastic tone. "
-        "Write as if you're a popular French-speaking podcast host from Paris. Use casual, expressive language that sounds natural to French listeners. "
-        "Keep the energy high and the phrasing conversational. Do not over-formalize.\n\n"
+        "Translate the following podcast script into fluent **Parisian French** with an enthusiastic and engaging tone. "
+        "Avoid any Canadian French or Quebecois expressions. "
+        "Use casual, expressive vocabulary that feels natural to a Paris-based podcast host speaking to French gamers. "
+        "Keep the pacing energetic and the tone conversational, without sounding overly formal or robotic.\n\n"
         f"{body_only}"
     )
 
