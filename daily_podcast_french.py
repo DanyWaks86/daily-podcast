@@ -1,4 +1,4 @@
-import os
+mport os
 import requests
 import openai
 from datetime import datetime, timezone, timedelta
@@ -18,7 +18,7 @@ BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/fr/"
 DATE = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 SCRIPT_FILENAME = f"podcast_{DATE}.txt"
 INTRO_MUSIC_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/breaking-news-intro-logo-314320.mp3"
-VOICE_ID = "Av6SEi7Xo7fWEjACu6Pr"
+VOICE_ID = "1a3lMdKLUcfcMtvN772u"
 MODEL_ID = "eleven_multilingual_v2"
 
 HEADERS_11 = {
@@ -39,22 +39,27 @@ def fetch_english_script():
     else:
         raise Exception(f"Failed to fetch English script: {response.text}")
 
+
 # === Translate ===
+from datetime import datetime, timedelta
+
 def translate_text(text):
+    # Remove the fixed English intro (always line 1)
     lines = text.strip().split('\n')
     body_only = '\n'.join(lines[1:]).strip()
 
+    # Your fixed French intro
     french_intro = (
         f"Bienvenue dans la Minute Gaming. Je suis Dany Waksman, un passionné de jeux vidéo et chaque jour je vous accompagne "
-        f"pour rester informé des dernières nouvelles du monde des jeux vidéo grâce à ce podcast généré automatiquement par intelligence artificielle. "
-        f"C'est parti, on se lance avec le récap des actualités d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n"
+        f"pour rester informé des dernières nouvelles du monde des jeux vidéo grace a ce podcast généré automatiquement par intelligence artificielle. "
+        f"C'est parti, on se lance avec le récap des actualités d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n\n"
     )
 
+    # Translation prompt for the rest of the script
     prompt = (
-        "Translate the following podcast script into fluent **Parisian French** with an enthusiastic and engaging tone. "
-        "Avoid any Canadian French or Quebecois expressions. "
-        "Use casual, expressive vocabulary that feels natural to a Paris-based podcast host speaking to French gamers. "
-        "Keep the pacing energetic and the tone conversational, without sounding overly formal or robotic.\n\n"
+        "Translate the following podcast script into natural, fluent French with an engaging and enthusiastic tone. "
+        "Write as if you're a popular French-speaking podcast host from Paris. Use casual, expressive language that sounds natural to French listeners. "
+        "Keep the energy high and the phrasing conversational. Do not over-formalize.\n\n"
         f"{body_only}"
     )
 
@@ -67,43 +72,25 @@ def translate_text(text):
 
     return french_intro + translated_body
 
-# === ElevenLabs TTS (Chunked) ===
+
+# === ElevenLabs TTS ===
 def generate_audio(text):
-    print("✂️ Splitting text for smoother voice synthesis...")
-
-    lines = [line.strip() for line in text.strip().split('\n') if line.strip()]
-    segments = ['\n'.join(lines[i:i+2]) for i in range(0, len(lines), 2)]
-
-    combined_audio = AudioSegment.silent(duration=500)
-
-    for idx, segment in enumerate(segments):
-        print(f"🎧 Synthesizing segment {idx+1}/{len(segments)}...")
-
-        payload = {
-            "text": segment,
-            "model_id": MODEL_ID,
-            "voice_settings": {
-                "stability": 0.6,
-                "similarity_boost": 0.9,
-                "style": 0.55,
-                "use_speaker_boost": True
-            }
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
+    payload = {
+        "text": text,
+        "model_id": "eleven_multilingual_v2", 
+        "voice_settings": {
+            "stability": 0.6,
+            "similarity_boost": 0.8,
+            "style": 0.4,
+            "use_speaker_boost": True  # <-- Critical for fidelity
         }
-
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
-        response = requests.post(url, headers=HEADERS_11, json=payload)
-
-        if response.status_code != 200:
-            raise Exception(f"TTS failed at segment {idx+1}: {response.text}")
-
-        audio_segment = AudioSegment.from_file(BytesIO(response.content), format="mp3")
-        combined_audio += audio_segment + AudioSegment.silent(duration=100)
-
-    output_io = BytesIO()
-    combined_audio.export(output_io, format="mp3")
-    output_io.seek(0)
-    return output_io
-
+    }
+    response = requests.post(url, headers=HEADERS_11, json=payload)
+    if response.status_code == 200:
+        return BytesIO(response.content)
+    else:
+        raise Exception(f"TTS failed: {response.text}")
 
 # === Combine Audio with loudnorm ===
 def combine_audio(voice_audio_io):
