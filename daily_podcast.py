@@ -122,9 +122,9 @@ def text_to_speech(text):
         "text": text,
         "model_id": "eleven_multilingual_v2",  # <-- Explicitly use the new model
         "voice_settings": {
-            "stability": 0.4,
-            "similarity_boost": 1.0,
-            "style": 0.7,
+            "stability": 0.7,
+            "similarity_boost": 0.7,
+            "style": 0.4,
             "use_speaker_boost": True  # <-- Critical for fidelity
         },
         "output_format": "wav"
