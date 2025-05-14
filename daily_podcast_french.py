@@ -39,23 +39,18 @@ def fetch_english_script():
     else:
         raise Exception(f"Failed to fetch English script: {response.text}")
 
-
 # === Translate ===
-from datetime import datetime, timedelta
-
 def translate_text(text):
-    # Remove the fixed English intro (always line 1)
     lines = text.strip().split('\n')
     body_only = '\n'.join(lines[1:]).strip()
 
-    # Your fixed French intro
     french_intro = (
         f"Bienvenue dans la Minute Gaming. Je suis Dany Waksman, un passionné de jeux vidéo et chaque jour je vous accompagne "
         f"pour rester informé des dernières nouvelles du monde des jeux vidéo grace a ce podcast généré automatiquement par intelligence artificielle. "
-        f"C'est parti, on se lance avec le récap des actualités d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n\n"
+        f"C'est parti, on se lance avec le récap des actualités d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.
+\n"
     )
 
-    # Translation prompt for the rest of the script
     prompt = (
         "Translate the following podcast script into fluent **Parisian French** with an enthusiastic and engaging tone. "
         "Avoid any Canadian French or Quebecois expressions. "
@@ -73,25 +68,43 @@ def translate_text(text):
 
     return french_intro + translated_body
 
-
-# === ElevenLabs TTS ===
+# === ElevenLabs TTS (Chunked) ===
 def generate_audio(text):
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
-    payload = {
-        "text": text,
-        "model_id": "eleven_multilingual_v2", 
-        "voice_settings": {
-            "stability": 0.7,
-            "similarity_boost": 0.6,
-            "style": 0.4,
-            "use_speaker_boost": True  # <-- Critical for fidelity
+    print("✂️ Splitting text for smoother voice synthesis...")
+
+    lines = [line.strip() for line in text.strip().split('\n') if line.strip()]
+    segments = ['\n'.join(lines[i:i+2]) for i in range(0, len(lines), 2)]
+
+    combined_audio = AudioSegment.silent(duration=500)
+
+    for idx, segment in enumerate(segments):
+        print(f"🎧 Synthesizing segment {idx+1}/{len(segments)}...")
+
+        payload = {
+            "text": segment,
+            "model_id": MODEL_ID,
+            "voice_settings": {
+                "stability": 0.7,
+                "similarity_boost": 0.6,
+                "style": 0.4,
+                "use_speaker_boost": True
+            }
         }
-    }
-    response = requests.post(url, headers=HEADERS_11, json=payload)
-    if response.status_code == 200:
-        return BytesIO(response.content)
-    else:
-        raise Exception(f"TTS failed: {response.text}")
+
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
+        response = requests.post(url, headers=HEADERS_11, json=payload)
+
+        if response.status_code != 200:
+            raise Exception(f"TTS failed at segment {idx+1}: {response.text}")
+
+        audio_segment = AudioSegment.from_file(BytesIO(response.content), format="mp3")
+        combined_audio += audio_segment + AudioSegment.silent(duration=200)
+
+    output_io = BytesIO()
+    combined_audio.export(output_io, format="mp3")
+    output_io.seek(0)
+    return output_io
+
 
 # === Combine Audio with loudnorm ===
 def combine_audio(voice_audio_io):
