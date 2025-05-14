@@ -68,9 +68,9 @@ def generate_audio(text):
         "text": text,
         "model_id": MODEL_ID,
         "voice_settings": {
-            "stability": 0.4,
-            "similarity_boost": 1.0,
-            "style": 0.5,
+            "stability": 0.7,
+            "similarity_boost": 0.6,
+            "style": 0.4,
             "use_speaker_boost": True  # <-- Critical for fidelity
         }
     }
