@@ -46,9 +46,10 @@ def translate_text(text):
 
     french_intro = (
         f"Bienvenue dans la Minute Gaming. Je suis Dany Waksman, un passionné de jeux vidéo et chaque jour je vous accompagne "
-        f"pour rester informé des dernières nouvelles du monde des jeux vidéo grace a ce podcast généré automatiquement par intelligence artificielle. "
-        f"C'est parti, on se lance avec le récap des actualités d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.
-\n"
+        f"pour rester informé des dernières nouvelles du monde des jeux vidéo grâce à ce podcast généré automatiquement par intelligence artificielle. "
+        f"C'est parti, on se lance avec le récap des actualités d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n"
+)
+
     )
 
     prompt = (
