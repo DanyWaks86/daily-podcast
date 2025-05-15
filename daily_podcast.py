@@ -66,11 +66,10 @@ def generate_script_from_text(rss_text):
 2. Select and summarize only the **6 most important or impactful stories**.
 3. For each story, **mention the news source** naturally (e.g., "according to IGN").
 4. Write in a **natural, casual, and enthusiastic tone**, as if you're an American podcast host who’s passionate about gaming and personally sharing the day's highlights.
-5. Use **engaging, expressive language** that feels like it belongs on a top gaming or tech podcast — fun, clear, and confident.
-6. Add **smooth transitions** between each story to help listeners follow along.
-7. Avoid robotic phrasing, formal structures, or any foreign language inserts — keep the script clean and fluent in natural American English.
-8. **Do not** use headers like "Story 1" or Markdown formatting.
-9. Aim for a **tight, energetic script** that runs around **4–5 minutes** when read aloud.
+5. Add **smooth transitions** between each story to help listeners follow along.
+6. Avoid robotic phrasing, formal structures, or any foreign language inserts — keep the script clean and fluent in natural American English.
+7. **Do not** use headers like "Story 1" or Markdown formatting.
+8. Aim for a **tight, energetic script** that runs around **4–5 minutes** when read aloud.
 
 Start the podcast script with this exact intro:
 "Welcome to the Daily Video Games Digest. I'm Dany Waksman, a video game enthusiast, bringing you this AI-generated podcast to stay informed with the latest in the gaming world. Let's jump right into yesterday’s biggest stories, {(datetime.now() - timedelta(days=1)).strftime('%B %d')}.”
@@ -122,9 +121,8 @@ def text_to_speech(text):
         "text": text,
         "model_id": "eleven_multilingual_v2",  # <-- Explicitly use the new model
         "voice_settings": {
-            "stability": 0.7,
-            "similarity_boost": 0.6,
-            "style": 0.4,
+            "stability": 0.4,
+            "similarity_boost": 0.75,
             "use_speaker_boost": True  # <-- Critical for fidelity
         },
         "output_format": "wav"
