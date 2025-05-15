@@ -79,8 +79,8 @@ def generate_audio(text):
     payload = {
         "text": text,
         "voice_settings": {
-            "stability": 0.65,
-            "similarity_boost": 0.9,
+            "stability": 0.5,
+            "similarity_boost": 0.8,
             "style": 0,
             "use_speaker_boost": True
         }
