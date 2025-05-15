@@ -1,4 +1,4 @@
-mport os
+import os
 import requests
 import openai
 from datetime import datetime, timezone, timedelta
@@ -15,10 +15,10 @@ PYTHONANYWHERE_USERNAME = os.getenv("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.getenv("PYTHONANYWHERE_API_TOKEN")
 
 BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/fr/"
-DATE = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+DATE = "2025-05-14"
 SCRIPT_FILENAME = f"podcast_{DATE}.txt"
 INTRO_MUSIC_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/breaking-news-intro-logo-314320.mp3"
-VOICE_ID = "1a3lMdKLUcfcMtvN772u"
+VOICE_ID = "Av6SEi7Xo7fWEjACu6Pr"
 MODEL_ID = "eleven_multilingual_v2"
 
 HEADERS_11 = {
@@ -50,15 +50,15 @@ def translate_text(text):
 
     # Your fixed French intro
     french_intro = (
-        f"Bienvenue dans la Minute Gaming. Je suis Dany Waksman, un passionné de jeux vidéo et chaque jour je vous accompagne "
-        f"pour rester informé des dernières nouvelles du monde des jeux vidéo grace a ce podcast généré automatiquement par intelligence artificielle. "
-        f"C'est parti, on se lance avec le récap des actualités d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n\n"
+        f"Bienvenue dans la Minute Gaming ! Je suis Dany Waksman, passionné de jeux vidéo, et chaque jour, je vous emmène "
+        f" faire le tour des actus les plus marquantes de l’univers gaming. Un condensé d’infos, généré par intelligence artificielle "
+        f"pour rester à jour sans perdre une minute ! C'est parti pour le récap d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n\n"
     )
 
     # Translation prompt for the rest of the script
     prompt = (
-        "Translate the following podcast script into natural, fluent French with an engaging and enthusiastic tone. "
-        "Write as if you're a popular French-speaking podcast host from Paris. Use casual, expressive language that sounds natural to French listeners. "
+        "Translate the following podcast script into natural, fluent Parisian French with an engaging and enthusiastic tone. "
+        "Use casual, expressive language that sounds natural to French listeners, avoid Canadian french expressions. "
         "Keep the energy high and the phrasing conversational. Do not over-formalize.\n\n"
         f"{body_only}"
     )
@@ -78,14 +78,14 @@ def generate_audio(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
     payload = {
         "text": text,
-        "model_id": "eleven_multilingual_v2", 
         "voice_settings": {
-            "stability": 0.6,
-            "similarity_boost": 0.8,
-            "style": 0.4,
-            "use_speaker_boost": True  # <-- Critical for fidelity
+            "stability": 0.65,
+            "similarity_boost": 0.9,
+            "style": 0,
+            "use_speaker_boost": True
         }
-    }
+    } 
+    
     response = requests.post(url, headers=HEADERS_11, json=payload)
     if response.status_code == 200:
         return BytesIO(response.content)
@@ -120,6 +120,7 @@ def combine_audio(voice_audio_io):
         
 
     intro = AudioSegment.from_file(intro_audio, format="mp3")
+    intro = intro - 6  # reduce intro volume by 6 dB (adjust this value to taste)
     final_audio = intro + normalized_voice + intro
 
     output_io = BytesIO()
