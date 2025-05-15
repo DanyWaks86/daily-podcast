@@ -121,8 +121,8 @@ def text_to_speech(text):
         "text": text,
         "model_id": "eleven_multilingual_v2",  # <-- Explicitly use the new model
         "voice_settings": {
-            "stability": 0.4,
-            "similarity_boost": 0.75,
+            "stability": 0.65,
+            "similarity_boost": 0.9,
             "use_speaker_boost": True  # <-- Critical for fidelity
         },
         "output_format": "wav"
