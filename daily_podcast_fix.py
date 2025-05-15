@@ -1,7 +1,7 @@
-import os
+mport os
 import requests
 import openai
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydub import AudioSegment
 from io import BytesIO
 import subprocess
@@ -15,10 +15,10 @@ PYTHONANYWHERE_USERNAME = os.getenv("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.getenv("PYTHONANYWHERE_API_TOKEN")
 
 BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/fr/"
-DATE = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+DATE = "2025-05-14"
 SCRIPT_FILENAME = f"podcast_{DATE}.txt"
 INTRO_MUSIC_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/breaking-news-intro-logo-314320.mp3"
-VOICE_ID = "Av6SEi7Xo7fWEjACu6Pr"
+VOICE_ID = "1a3lMdKLUcfcMtvN772u"
 MODEL_ID = "eleven_multilingual_v2"
 
 HEADERS_11 = {
@@ -41,20 +41,36 @@ def fetch_english_script():
 
 
 # === Translate ===
+from datetime import datetime, timedelta
+
 def translate_text(text):
-    prompt = (
-        "Translate the following podcast script into **natural, fluent French** with an **engaging, energetic, and enthusiastic tone**. "
-        "Imagine this is being read by a charismatic podcast host who is passionate about video games. "
-        "Use casual, dynamic expressions that sound natural to French-speaking listeners — like something you'd hear on a popular tech podcast. "
-        "Avoid overly formal language. Keep it fun, expressive, and conversational. "
-        "Maintain the energy, pacing, and excitement of the original English.\n\n"
-        f"{text}"
+    # Remove the fixed English intro (always line 1)
+    lines = text.strip().split('\n')
+    body_only = '\n'.join(lines[1:]).strip()
+
+    # Your fixed French intro
+    french_intro = (
+        f"Bienvenue dans la Minute Gaming. Je suis Dany Waksman, un passionné de jeux vidéo et chaque jour je vous accompagne "
+        f"pour rester informé des dernières nouvelles du monde des jeux vidéo grace a ce podcast généré automatiquement par intelligence artificielle. "
+        f"C'est parti, on se lance avec le récap des actualités d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n\n"
     )
+
+    # Translation prompt for the rest of the script
+    prompt = (
+        "Translate the following podcast script into natural, fluent French with an engaging and enthusiastic tone. "
+        "Write as if you're a popular French-speaking podcast host from Paris. Use casual, expressive language that sounds natural to French listeners. "
+        "Keep the energy high and the phrasing conversational. Do not over-formalize.\n\n"
+        f"{body_only}"
+    )
+
     response = client.chat.completions.create(
         model="gpt-4-turbo",
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.choices[0].message.content.strip()
+
+    translated_body = response.choices[0].message.content.strip()
+
+    return french_intro + translated_body
 
 
 # === ElevenLabs TTS ===
@@ -62,12 +78,14 @@ def generate_audio(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
     payload = {
         "text": text,
-        "model_id": MODEL_ID,
+        "model_id": "eleven_turbo_v2", 
         "voice_settings": {
-            "stability": 0.4,
-            "similarity_boost": 1.0,
-            "style": 0.7,
-            "use_speaker_boost": True  # <-- Critical for fidelity
+        "stability": 0.65,
+        "similarity_boost": 0.9,
+        "style": 0.5,
+        "use_speaker_boost": True
+}
+
         }
     }
     response = requests.post(url, headers=HEADERS_11, json=payload)
@@ -78,8 +96,6 @@ def generate_audio(text):
 
 # === Combine Audio with loudnorm ===
 def combine_audio(voice_audio_io):
-    import subprocess
-    import tempfile
 
     # Download intro music
     intro_response = requests.get(INTRO_MUSIC_URL)
@@ -103,6 +119,7 @@ def combine_audio(voice_audio_io):
 
             # Load normalized audio into memory
             normalized_voice = AudioSegment.from_wav(temp_norm.name)
+        
 
     intro = AudioSegment.from_file(intro_audio, format="mp3")
     final_audio = intro + normalized_voice + intro
@@ -160,12 +177,38 @@ def generate_html():
 </html>"""
 
 # === Generate RSS ===
-def generate_rss():
-    return f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<rss version=\"2.0\"
-     xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\"
-     xmlns:atom=\"http://www.w3.org/2005/Atom\"
-     xmlns:podcast=\"https://podcastindex.org/namespace/1.0\">
+def update_rss():
+    rss_filename = "rss_fr.xml"
+    pub_date_formatted = datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')
+
+    new_item = f"""
+    <item>
+      <title>La Minute Gaming - {DATE}</title>
+      <link>{BASE_URL}podcast_{DATE}.html</link>
+      <description><![CDATA[Podcast d'actualité jeux vidéos du jour, en français, présenté par Dany Waksman. Lire les notes: {BASE_URL}podcast_{DATE}.html]]></description>
+      <enclosure url="{BASE_URL}final_podcast_fr_{DATE}.mp3" length="5000000" type="audio/mpeg" />
+      <guid>{BASE_URL}podcast_{DATE}.html</guid>
+      <pubDate>{pub_date_formatted}</pubDate>
+      <itunes:author>Dany Waksman</itunes:author>
+    </item>"""
+
+    # Try fetching existing RSS file from PythonAnywhere
+    url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/fr/{rss_filename}"
+    response = requests.get(url, headers=HEADERS_PY)
+
+    if response.status_code == 200:
+        rss_content = response.text
+        if f"<guid>{BASE_URL}podcast_{DATE}.html</guid>" in rss_content:
+            print("✅ Today's episode already in RSS.")
+            return
+        updated_rss = rss_content.replace("</channel>", f"{new_item}\n  </channel>")
+    else:
+        print("🆕 Creating new rss_fr.xml from scratch.")
+        updated_rss = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+     xmlns:atom="http://www.w3.org/2005/Atom"
+     xmlns:podcast="https://podcastindex.org/namespace/1.0">
   <channel>
     <title>La Minute Gaming</title>
     <link>{BASE_URL}</link>
@@ -179,42 +222,49 @@ def generate_rss():
     <itunes:summary>La Minute Gaming — l'actu de jeux vidéos en français, générée par IA.</itunes:summary>
     <itunes:explicit>no</itunes:explicit>
     <podcast:locked>yes</podcast:locked>
-    <itunes:image href=\"{BASE_URL}podcast-cover-fr.png\"/>
-    <itunes:category text=\"Technology\"/>
-    <itunes:category text=\"Leisure\">
-      <itunes:category text=\"Video Games\"/>
+    <itunes:image href="{BASE_URL}podcast-cover-fr.png"/>
+    <itunes:category text="Technology"/>
+    <itunes:category text="Leisure">
+      <itunes:category text="Video Games"/>
     </itunes:category>
-    <item>
-      <title>La Minute Gaming - {DATE}</title>
-      <link>{BASE_URL}podcast_{DATE}.html</link>
-      <description><![CDATA[Podcast d'actualité jeux vidéos du jour, en français, présenté par Dany Waksman]]></description>
-      <enclosure url=\"{BASE_URL}final_podcast_fr_{DATE}.mp3\" type=\"audio/mpeg\" />
-      <guid>{BASE_URL}podcast_{DATE}.html</guid>
-      <pubDate>{datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate>
-      <itunes:author>Dany Waksman</itunes:author>
-    </item>
+    <atom:link href="{BASE_URL}rss_fr.xml" rel="self" type="application/rss+xml"/>
+    {new_item}
   </channel>
 </rss>"""
 
+    # Upload updated RSS back to PythonAnywhere
+    upload_to_pythonanywhere(rss_filename, BytesIO(updated_rss.encode("utf-8")))
+
+
 # === Main ===
 def main():
-    print("🧪 Running French voice enthusiasm test...")
+    print("📥 Fetching English script...")
+    script = fetch_english_script()
 
-    # Direct input (15s sentence)
-    test_text = "Bonjour, je suis Dany Waksman, un passionné de jeux vidéo, et bienvenue sur mon podcast pour décrypter l'actualité."
+    print("🧠 Translating to French...")
+    translated = translate_text(script)
 
     print("🔊 Generating voice audio...")
-    voice_mp3 = generate_audio(test_text)
+    voice_mp3 = generate_audio(translated)
 
     print("🎵 Combining with intro/outro...")
     final_audio_io = combine_audio(voice_mp3)
 
-    filename = "test_voice_fr.mp3"
+    print("☁️ Uploading MP3...")
+    upload_to_pythonanywhere(f"final_podcast_fr_{DATE}.mp3", final_audio_io)
 
-    print(f"☁️ Uploading test file as {filename}...")
-    upload_to_pythonanywhere(filename, final_audio_io)
+    print("📜 Uploading HTML...")
+    html = generate_html()
+    upload_to_pythonanywhere(f"podcast_{DATE}.html", BytesIO(html.encode("utf-8")))
 
-    print("✅ Test complete! Your enthusiastic French sample is online.")
+    print("📡 Uploading RSS...")
+    update_rss()
+
+
+    print("✅ French version published!")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"❌ Fatal error: {e}")
