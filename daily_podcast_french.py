@@ -94,35 +94,45 @@ def generate_audio(text):
 
 # === Combine Audio with loudnorm ===
 def combine_audio(voice_audio_io):
-
-    # Download intro music
+    # === Step 1: Download and save intro music to temp file ===
     intro_response = requests.get(INTRO_MUSIC_URL)
     if intro_response.status_code != 200:
         raise Exception(f"Failed to download intro music: {intro_response.status_code} – {intro_response.text}")
     intro_audio = BytesIO(intro_response.content)
 
-    # Save voice audio to temp file for loudnorm normalization
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_intro_in:
+        temp_intro_in.write(intro_audio.read())
+        temp_intro_in.flush()
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_intro_norm:
+            subprocess.run([
+                "ffmpeg", "-y",
+                "-i", temp_intro_in.name,
+                "-af", "loudnorm",
+                "-codec:a", "libmp3lame",
+                "-q:a", "2",
+                temp_intro_norm.name
+            ], check=True)
+            normalized_intro = AudioSegment.from_file(temp_intro_norm.name, format="mp3")
+
+    # === Step 2: Normalize voice audio ===
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_raw:
         temp_raw.write(voice_audio_io.read())
         temp_raw.flush()
 
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_norm:
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_voice_norm:
             subprocess.run([
                 "ffmpeg", "-y",
                 "-i", temp_raw.name,
-                "-ar", "44100",  # explicitly downsample to safe rate
                 "-af", "loudnorm",
-                temp_norm.name
+                "-codec:a", "libmp3lame",
+                "-q:a", "2",
+                temp_voice_norm.name
             ], check=True)
+            normalized_voice = AudioSegment.from_file(temp_voice_norm.name, format="mp3")
 
-            # Load normalized audio into memory
-            normalized_voice = AudioSegment.from_wav(temp_norm.name)
-        
-
-    intro = AudioSegment.from_file(intro_audio, format="mp3")
-    intro = intro - 6  # reduce intro volume by 6 dB (adjust this value to taste)
-    final_audio = intro + normalized_voice + intro
-
+    # === Step 3: Combine and export ===
+    final_audio = normalized_intro + normalized_voice + normalized_intro
     output_io = BytesIO()
     final_audio.export(output_io, format="mp3")
     output_io.seek(0)
