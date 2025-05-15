@@ -1,4 +1,4 @@
-mport os
+import os
 import requests
 import openai
 from datetime import datetime, timezone, timedelta
