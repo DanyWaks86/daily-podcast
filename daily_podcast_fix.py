@@ -78,14 +78,13 @@ def generate_audio(text):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
     payload = {
         "text": text,
-        "model_id": "eleven_turbo_v2", 
         "voice_settings": {
             "stability": 0.65,
             "similarity_boost": 0.9,
             "style": 0.5,
             "use_speaker_boost": True
         }
-    }  # This is the correct closing brace (no extras)
+    } 
     
     response = requests.post(url, headers=HEADERS_11, json=payload)
     if response.status_code == 200:
@@ -243,8 +242,11 @@ def main():
     print("🧠 Translating to French...")
     translated = translate_text(script)
 
-    print("🔊 Generating voice audio...")
-    voice_mp3 = generate_audio(translated)
+    print("🔊 Generating voice audio (first 30 seconds only)...")
+    # Estimate first ~600 characters as 30 seconds of speech
+    preview_text = translated[:600]
+    voice_mp3 = generate_audio(preview_text)
+
 
     print("🎵 Combining with intro/outro...")
     final_audio_io = combine_audio(voice_mp3)
