@@ -15,7 +15,7 @@ PYTHONANYWHERE_USERNAME = os.getenv("PYTHONANYWHERE_USERNAME")
 PYTHONANYWHERE_API_TOKEN = os.getenv("PYTHONANYWHERE_API_TOKEN")
 
 BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/fr/"
-DATE = "2025-05-14"
+DATE = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 SCRIPT_FILENAME = f"podcast_{DATE}.txt"
 INTRO_MUSIC_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/breaking-news-intro-logo-314320.mp3"
 VOICE_ID = "Av6SEi7Xo7fWEjACu6Pr"
