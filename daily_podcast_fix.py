@@ -120,6 +120,7 @@ def combine_audio(voice_audio_io):
         
 
     intro = AudioSegment.from_file(intro_audio, format="mp3")
+    intro = intro - 6  # reduce intro volume by 6 dB (adjust this value to taste)
     final_audio = intro + normalized_voice + intro
 
     output_io = BytesIO()
@@ -242,9 +243,9 @@ def main():
     print("🧠 Translating to French...")
     translated = translate_text(script)
 
-    print("🔊 Generating voice audio (first 30 seconds only)...")
-    # Estimate first ~600 characters as 30 seconds of speech
-    preview_text = translated[:600]
+    print("🔊 Generating voice audio (first 25 seconds only)...")
+    # Estimate first ~500 characters as 30 seconds of speech
+    preview_text = translated[:500]
     voice_mp3 = generate_audio(preview_text)
 
 
