@@ -52,7 +52,7 @@ def translate_text(text):
     french_intro = (
         f"Bienvenue dans la Minute Gaming ! Je suis Dany Waksman, passionné de jeux vidéo, et chaque jour, je vous emmène "
         f" faire le tour des actus les plus marquantes de l’univers du jeux video. Un condensé d’infos, généré par intelligence artificielle "
-        f"pour rester à jour sans perdre une minute ! C'est parti pour le recap d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n\n"
+        f"pour rester à jour sans perdre une minute ! C'est parti pour le récap d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n\n"
     )
 
     # Translation prompt for the rest of the script
