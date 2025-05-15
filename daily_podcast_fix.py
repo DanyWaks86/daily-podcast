@@ -1,272 +1,361 @@
-import os
+import os 
+import io
 import requests
-import openai
-from datetime import datetime, timezone, timedelta
-from pydub import AudioSegment
-from io import BytesIO
 import subprocess
-import tempfile
-import time
+from datetime import datetime, timezone, timedelta
+from difflib import SequenceMatcher
+from pydub import AudioSegment
+import yagmail
+from email.message import EmailMessage
+import smtplib
+import ssl
+from mutagen.easyid3 import EasyID3
+from mutagen.mp3 import MP3
 
-# === Configuration ===
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-PYTHONANYWHERE_USERNAME = os.getenv("PYTHONANYWHERE_USERNAME")
-PYTHONANYWHERE_API_TOKEN = os.getenv("PYTHONANYWHERE_API_TOKEN")
+# === CONFIGURATION ===
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+OPENAI_PROJECT_ID = os.environ.get("OPENAI_PROJECT_ID")
+ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY")
+ELEVENLABS_VOICE_ID = "Av6SEi7Xo7fWEjACu6Pr"
 
-BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/fr/"
-DATE = "2025-05-14"
-SCRIPT_FILENAME = f"podcast_{DATE}.txt"
-INTRO_MUSIC_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/breaking-news-intro-logo-314320.mp3"
-VOICE_ID = "Av6SEi7Xo7fWEjACu6Pr"
-MODEL_ID = "eleven_multilingual_v2"
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
+APP_PASSWORD = os.environ.get("APP_PASSWORD")
+RECIPIENT_EMAIL = os.environ.get("RECIPIENT_EMAIL")
 
-HEADERS_11 = {
-    "xi-api-key": ELEVENLABS_API_KEY,
-    "Content-Type": "application/json"
-}
+PYTHONANYWHERE_USERNAME = os.environ.get("PYTHONANYWHERE_USERNAME")
+PYTHONANYWHERE_API_TOKEN = os.environ.get("PYTHONANYWHERE_API_TOKEN")
 
-HEADERS_PY = {
-    "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
-}
+PODCAST_DIR = "/opt/render/project/src/podcast/"
+BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/"
+RSS_FILENAME = "rss.xml"
+MAX_EPISODES = 14
 
-# === Download English script ===
-def fetch_english_script():
-    url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/en/{SCRIPT_FILENAME}"
-    response = requests.get(url, headers=HEADERS_PY)
-    if response.status_code == 200:
-        return response.text
-    else:
-        raise Exception(f"Failed to fetch English script: {response.text}")
+TODAY = "2025-05-14"
 
 
-# === Translate ===
-from datetime import datetime, timedelta
 
-def translate_text(text):
-    # Remove the fixed English intro (always line 1)
-    lines = text.strip().split('\n')
-    body_only = '\n'.join(lines[1:]).strip()
+def add_id3_tags(mp3_path, date_str):
+    try:
+        audio = MP3(mp3_path, ID3=EasyID3)
+        audio["title"] = f"Gaming News Digest - {date_str}"
+        audio["artist"] = "Dany Waksman"
+        audio["album"] = "Daily Video Games Digest"
+        audio.save()
+        print(f"✅ ID3 tags added to {mp3_path}")
+    except Exception as e:
+        print(f"❌ Failed to add ID3 tags: {e}")
 
-    # Your fixed French intro
-    french_intro = (
-        f"Bienvenue dans la Minute Gaming ! Je suis Dany Waksman, passionné de jeux vidéo, et chaque jour, je vous emmène "
-        f" faire le tour des actus les plus marquantes de l’univers du jeux video. Un condensé d’infos, généré par intelligence artificielle "
-        f"pour rester à jour sans perdre une minute ! C'est parti pour le récap d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n\n"
-    )
+def fetch_rss_articles_txt():
+    print("📥 Fetching scored articles from PythonAnywhere...")
+    headers = {
+        "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
+    }
+    txt_filename = f"rss_articles_scored_{TODAY}.txt"
+    txt_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{txt_filename}"
+    response = requests.get(txt_url, headers=headers)
 
-    # Translation prompt for the rest of the script
-    prompt = (
-        "Translate the following podcast script into natural, fluent Parisian French with an engaging and enthusiastic tone. "
-        "Use casual, expressive language that sounds natural to French listeners, avoid Canadian french expressions. "
-        "Keep the energy high and the phrasing conversational. Do not over-formalize.\n\n"
-        f"{body_only}"
-    )
+    if response.status_code != 200:
+        print(f"❌ Failed to fetch RSS-scored articles: {response.text}")
+        return None
+    return response.text
 
-    response = client.chat.completions.create(
-        model="gpt-4-turbo",
-        messages=[{"role": "user", "content": prompt}]
-    )
+def generate_script_from_text(rss_text):
+    prompt = f"""You are generating a daily podcast script based on real gaming news articles. Follow these rules carefully:
 
-    translated_body = response.choices[0].message.content.strip()
+1. Carefully read and understand the articles provided.
+2. Select and summarize only the **6 most important or impactful stories**.
+3. For each story, **mention the news source** naturally (e.g., "according to IGN").
+4. Write in a **natural, casual, and enthusiastic tone**, as if you're an American podcast host who’s passionate about gaming and personally sharing the day's highlights.
+5. Add **smooth transitions** between each story to help listeners follow along.
+6. Avoid robotic phrasing, formal structures, or any foreign language inserts — keep the script clean and fluent in natural American English.
+7. **Do not** use headers like "Story 1" or Markdown formatting.
+8. Aim for a **tight, energetic script** that runs around **4–5 minutes** when read aloud.
 
-    return french_intro + translated_body
+Start the podcast script with this exact intro:
+"Welcome to the Daily Video Games Digest. I'm Dany Waksman, a video game enthusiast, bringing you this AI-generated podcast to stay informed with the latest in the gaming world. Let's jump right into yesterday’s biggest stories, May 13.”
 
 
-# === ElevenLabs TTS ===
-def generate_audio(text):
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
+End the podcast script with this exact outro:
+"Thanks for tuning into the Daily Video Games Digest. If you enjoyed today’s update, be sure to check back tomorrow for the latest in gaming news. Until then, happy gaming!"
+
+Here are the real articles:
+
+{rss_text}
+"""
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "OpenAI-Project": OPENAI_PROJECT_ID
+    }
+    data = {
+        "model": "gpt-4-turbo",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7
+    }
+
+    try:
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+        response.raise_for_status()  # Raise error for 4xx/5xx
+
+        result = response.json()
+        usage = result.get("usage", {})
+        print(f"✅ Prompt tokens: {usage.get('prompt_tokens')}, Completion tokens: {usage.get('completion_tokens')}")
+
+        script_text = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+        return script_text, None
+
+    except requests.exceptions.HTTPError as http_err:
+        print(f"❌ HTTP error from OpenAI: {http_err} - Response: {response.text}")
+    except Exception as e:
+        print(f"❌ Other error from OpenAI: {e}")
+
+    return None, "Failed to generate script"
+
+
+def text_to_speech(text):
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
+    headers = {
+        "xi-api-key": ELEVENLABS_API_KEY,
+        "Content-Type": "application/json"
+    }
     payload = {
         "text": text,
+        "model_id": "eleven_multilingual_v2",  # <-- Explicitly use the new model
         "voice_settings": {
             "stability": 0.65,
             "similarity_boost": 0.9,
-            "style": 0,
-            "use_speaker_boost": True
+            "use_speaker_boost": True  # <-- Critical for fidelity
+        },
+        "output_format": "wav"
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+    if response.status_code != 200:
+        print("❌ ElevenLabs TTS Error:", response.text)
+        return None
+    return response.content
+
+def save_audio_with_intro_outro(audio_data, filename_base):
+    raw_voice_path = os.path.join(PODCAST_DIR, "voice_raw.mp3")
+    normalized_voice_path = os.path.join(PODCAST_DIR, "voice_normalized.mp3")
+
+    # Save ElevenLabs raw output first
+    with open(raw_voice_path, "wb") as f:
+        f.write(audio_data)
+
+    # Normalize audio using ffmpeg and output to MP3 (instead of memory-hungry WAV)
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-i", raw_voice_path,
+        "-af", "loudnorm",
+        "-codec:a", "libmp3lame",
+        "-q:a", "2",
+        normalized_voice_path
+    ], check=True)
+
+    # Load intro music and normalized voice
+    intro = AudioSegment.from_file(os.path.join(PODCAST_DIR, "breaking-news-intro-logo-314320.mp3"), format="mp3") - 8
+    voice = AudioSegment.from_file(normalized_voice_path, format="mp3")
+
+    # Combine intro + voice + outro
+    combined = intro + voice + intro
+    final_filename = os.path.join(PODCAST_DIR, f"final_podcast_{filename_base}.mp3")
+
+    # Export final MP3
+    combined.export(
+        final_filename,
+        format="mp3",
+        tags={
+            "title": f"Daily Video Games Digest – {filename_base}",
+            "artist": "Dany Waksman",
+            "album": "Daily Video Games Digest"
         }
-    } 
-    
-    response = requests.post(url, headers=HEADERS_11, json=payload)
-    if response.status_code == 200:
-        return BytesIO(response.content)
-    else:
-        raise Exception(f"TTS failed: {response.text}")
+    )
 
-# === Combine Audio with loudnorm ===
-def combine_audio(voice_audio_io):
-
-    # Download intro music
-    intro_response = requests.get(INTRO_MUSIC_URL)
-    if intro_response.status_code != 200:
-        raise Exception(f"Failed to download intro music: {intro_response.status_code} – {intro_response.text}")
-    intro_audio = BytesIO(intro_response.content)
-
-    # Save voice audio to temp file for loudnorm normalization
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_raw:
-        temp_raw.write(voice_audio_io.read())
-        temp_raw.flush()
-
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_norm:
-            subprocess.run([
-                "ffmpeg", "-y",
-                "-i", temp_raw.name,
-                "-ar", "44100",  # explicitly downsample to safe rate
-                "-af", "loudnorm",
-                temp_norm.name
-            ], check=True)
-
-            # Load normalized audio into memory
-            normalized_voice = AudioSegment.from_wav(temp_norm.name)
-        
-
-    intro = AudioSegment.from_file(intro_audio, format="mp3")
-    intro = intro - 6  # reduce intro volume by 6 dB (adjust this value to taste)
-    final_audio = intro + normalized_voice + intro
-
-    output_io = BytesIO()
-    final_audio.export(output_io, format="mp3")
-    output_io.seek(0)
-    return output_io
+    return final_filename
 
 
-# === Upload to PythonAnywhere ===
-def upload_to_pythonanywhere(filename, fileobj):
-    url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/fr/{filename}"
 
-    fileobj.seek(0, os.SEEK_END)
-    size_kb = fileobj.tell() / 1024
-    fileobj.seek(0)
-    print(f"📁 Preparing to upload: {filename} ({size_kb:.1f} KB)")
+def generate_show_notes(rss_text, date_str):
+    html_content = f"""<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <title>Daily Video Games Digest – {date_str}</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; max-width: 700px; margin: auto; padding: 20px; }}
+        h1 {{ color: #333; }}
+        pre {{ background: #f4f4f4; padding: 10px; border: 1px solid #ccc; white-space: pre-wrap; }}
+        footer {{ margin-top: 40px; font-size: 0.9em; color: #666; }}
+    </style>
+</head>
+<body>
+    <h1>Daily Video Games Digest – {date_str}</h1>
+    <p>Below are the articles that were summarized in today’s episode:</p>
+    <pre>{rss_text}</pre>
 
-    max_retries = 3
-    for attempt in range(1, max_retries + 1):
-        print(f"🔁 Attempt {attempt} of {max_retries} to upload {filename}...")
-        response = requests.post(url, headers=HEADERS_PY, files={"content": fileobj})
-
-        if response.status_code == 200:
-            print(f"✅ Successfully uploaded {filename} to PythonAnywhere.")
-            return
-
-        print(f"⚠️ Upload failed (HTTP {response.status_code}).")
-        print(f"📄 Response body: {response.text or '[empty]'}")
-
-        if response.status_code == 413:
-            print("❌ File too large to upload via API.")
-            break
-        elif response.status_code in [401, 403]:
-            print("❌ Authentication or permission error. Check API token and username.")
-            break
-        elif attempt < max_retries:
-            print("⏳ Retrying after 2 seconds...")
-            time.sleep(2)
-            fileobj.seek(0)
-        else:
-            raise Exception(f"❌ Final attempt failed to upload {filename}.")
-
-# === Generate HTML page ===
-def generate_html():
-    return f"""<html>
-  <head><title>{DATE} - La Minute Gaming</title></head>
-  <body>
-    <h1>{DATE} - Podcast Jeux Videos</h1>
+    <h2>🎧 Listen to the episode:</h2>
     <audio controls>
-      <source src=\"final_podcast_fr_{DATE}.mp3\" type=\"audio/mpeg\">
+        <source src="{BASE_URL}final_podcast_{date_str}.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
     </audio>
-  </body>
-</html>"""
 
-# === Generate RSS ===
+    <footer>
+        <p>Subscribe on your favorite platform: Apple Podcasts, Spotify, Amazon Music.</p>
+    </footer>
+</body>
+</html>"""
+    with open(os.path.join(PODCAST_DIR, f"podcast_{date_str}.html"), "w") as f:
+        f.write(html_content)
+
+
 def update_rss():
-    rss_filename = "rss_fr.xml"
-    pub_date_formatted = datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')
+    rss_path = os.path.join(PODCAST_DIR, RSS_FILENAME)
+    today_date = datetime.now().strftime('%Y-%m-%d')
+    pub_date_formatted = datetime.strptime(TODAY, "%Y-%m-%d").strftime('%a, %d %b %Y 06:00:00 GMT')
+
+    print("📥 Fetching latest rss.xml from PythonAnywhere...")
+    headers = {
+        "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
+    }
+    rss_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/rss.xml"
+    rss_response = requests.get(rss_url, headers=headers)
+
+    if rss_response.status_code == 200:
+        with open(rss_path, "w", encoding="utf-8") as f:
+            f.write(rss_response.text)
+        print("✅ Fetched and saved existing rss.xml")
+    else:
+        print(f"⚠️ Could not fetch existing rss.xml (status {rss_response.status_code}), will create new one.")
 
     new_item = f"""
     <item>
-      <title>La Minute Gaming - {DATE}</title>
-      <link>{BASE_URL}podcast_{DATE}.html</link>
-      <description><![CDATA[Podcast d'actualité jeux vidéos du jour, en français, présenté par Dany Waksman. Lire les notes: {BASE_URL}podcast_{DATE}.html]]></description>
-      <enclosure url="{BASE_URL}final_podcast_fr_{DATE}.mp3" length="5000000" type="audio/mpeg" />
-      <guid>{BASE_URL}podcast_{DATE}.html</guid>
+      <title>{datetime.now().strftime('%B %d')} - Gaming News Digest</title>
+      <link>{BASE_URL}podcast_{today_date}.html</link>
+      <description><![CDATA[Gaming news highlights summarized by Dany Waksman. Read the show notes: {BASE_URL}podcast_{today_date}.html]]></description>
+      <enclosure url="{BASE_URL}final_podcast_{today_date}.mp3" length="5000000" type="audio/mpeg" />
+      <guid>{today_date}</guid>
       <pubDate>{pub_date_formatted}</pubDate>
-      <itunes:author>Dany Waksman</itunes:author>
     </item>"""
 
-    # Try fetching existing RSS file from PythonAnywhere
-    url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/fr/{rss_filename}"
-    response = requests.get(url, headers=HEADERS_PY)
-
-    if response.status_code == 200:
-        rss_content = response.text
-        if f"<guid>{BASE_URL}podcast_{DATE}.html</guid>" in rss_content:
+    if os.path.exists(rss_path):
+        with open(rss_path, "r", encoding="utf-8") as f:
+            rss_content = f.read()
+        if today_date in rss_content:
             print("✅ Today's episode already in RSS.")
             return
         updated_rss = rss_content.replace("</channel>", f"{new_item}\n  </channel>")
     else:
-        print("🆕 Creating new rss_fr.xml from scratch.")
+        print("🆕 Creating new rss.xml from scratch.")
         updated_rss = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
-     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
-     xmlns:atom="http://www.w3.org/2005/Atom"
-     xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+  xmlns:atom="http://www.w3.org/2005/Atom"
+  xmlns:podcast="https://podcastindex.org/namespace/1.0">
   <channel>
-    <title>La Minute Gaming</title>
+    <title>Daily Video Games Digest</title>
     <link>{BASE_URL}</link>
-    <language>fr-fr</language>
-    <description>Un podcast quotidien d'actualités gaming en français.</description>
+    <language>en-us</language>
+    <description>Daily video game news podcast, summarized and delivered by Dany Waksman.</description>
+    <ttl>1440</ttl>
+
+    <atom:link href="{BASE_URL}rss.xml" rel="self" type="application/rss+xml"/>
     <itunes:author>Dany Waksman</itunes:author>
-    <itunes:owner>
-      <itunes:name>Dany Waksman</itunes:name>
-      <itunes:email>dany.waksman@gmail.com</itunes:email>
-    </itunes:owner>
-    <itunes:summary>La Minute Gaming — l'actu de jeux vidéos en français, générée par IA.</itunes:summary>
+    <itunes:summary>Your AI-generated source for daily video game news, highlights, and analysis.</itunes:summary>
     <itunes:explicit>no</itunes:explicit>
     <podcast:locked>yes</podcast:locked>
-    <itunes:image href="{BASE_URL}podcast-cover-fr.png"/>
+
+    <itunes:image href="{BASE_URL}podcast-cover.png"/>
     <itunes:category text="Technology"/>
     <itunes:category text="Leisure">
       <itunes:category text="Video Games"/>
     </itunes:category>
-    <atom:link href="{BASE_URL}rss_fr.xml" rel="self" type="application/rss+xml"/>
-    {new_item}
+
+{new_item}
   </channel>
 </rss>"""
 
-    # Upload updated RSS back to PythonAnywhere
-    upload_to_pythonanywhere(rss_filename, BytesIO(updated_rss.encode("utf-8")))
+    with open(rss_path, "w", encoding="utf-8") as f:
+        f.write(updated_rss)
+    print("✅ RSS updated with new episode and full Apple compliance.")
+
+def send_email_with_podcast(final_filename):
+    yag = yagmail.SMTP(user=SENDER_EMAIL, password=APP_PASSWORD)
+    yag.send(
+        to=RECIPIENT_EMAIL,
+        subject=f"🎧 Daily Video Games Digest – {datetime.now().strftime('%B %d, %Y')}",
+        contents="Here’s your latest AI-generated podcast episode!",
+        attachments=final_filename
+    )
+
+def push_to_pythonanywhere_api():
+    print("🚀 Uploading files to PythonAnywhere via API...")
+    headers = {
+        "Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"
+    }
+    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/"
+
+    for filename in [
+        f"final_podcast_{TODAY}.mp3",
+        f"podcast_{TODAY}.html",
+        "breaking-news-intro-logo-314320.mp3",
+        "rss.xml",
+    ]:
+        local_path = os.path.join(PODCAST_DIR, filename)
+        with open(local_path, "rb") as f:
+            response = requests.post(upload_url + filename, headers=headers, files={"content": f})
+            if response.status_code != 200:
+                print(f"❌ Failed to upload {filename}: {response.text}")
+            else:
+                print(f"✅ Uploaded {filename} to PythonAnywhere.")
+
+# === MAIN PROCESS ===
+rss_text = fetch_rss_articles_txt()
+if not rss_text:
+    print("❌ No RSS article text found.")
+    exit()
+
+print("🧠 Generating podcast script...")
+script, _ = generate_script_from_text(rss_text)
+if not script:
+    print("❌ Failed to generate script.")
+    exit()
+
+# Save English script to PythonAnywhere for multilingual use
+print("📤 Uploading English script to PythonAnywhere...")
+try:
+    headers = {"Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"}
+    upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/en/podcast_{TODAY}.txt"
+    response = requests.post(upload_url, headers=headers, files={"content": script.encode("utf-8")})
+    if response.status_code == 200:
+        print("✅ English script uploaded successfully to /Podcast/en/")
+    else:
+        print(f"⚠️ Failed to upload English script: {response.status_code} - {response.text}")
+except Exception as e:
+    print(f"❌ Exception during English script upload: {e}")
 
 
-# === Main ===
-def main():
-    print("📥 Fetching English script...")
-    script = fetch_english_script()
 
-    print("🧠 Translating to French...")
-    translated = translate_text(script)
+print("🎙️ Converting script to audio...")
+audio_data = text_to_speech(script)
+if not audio_data:
+    print("❌ No audio data returned from TTS engine.")
+    exit()
+print("✅ Audio data received!")
 
-    print("🔊 Generating voice audio (first 25 seconds only)...")
-    # Estimate first ~500 characters as 30 seconds of speech
-    preview_text = translated[:500]
-    voice_mp3 = generate_audio(preview_text)
+os.makedirs(PODCAST_DIR, exist_ok=True)
+final_filename = save_audio_with_intro_outro(audio_data, TODAY)
+add_id3_tags(final_filename, TODAY)
 
+generate_show_notes(rss_text, TODAY)
 
-    print("🎵 Combining with intro/outro...")
-    final_audio_io = combine_audio(voice_mp3)
+print("📬 Sending podcast email...")
+send_email_with_podcast(final_filename)
 
-    print("☁️ Uploading MP3...")
-    upload_to_pythonanywhere(f"final_podcast_fr_{DATE}.mp3", final_audio_io)
+print("🛠️ Updating RSS feed...")
+update_rss()
 
-    print("📜 Uploading HTML...")
-    html = generate_html()
-    upload_to_pythonanywhere(f"podcast_{DATE}.html", BytesIO(html.encode("utf-8")))
-
-    print("📡 Uploading RSS...")
-    update_rss()
+print("🚀 Pushing podcast folder to PythonAnywhere...")
+push_to_pythonanywhere_api()
 
 
-    print("✅ French version published!")
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        print(f"❌ Fatal error: {e}")
+print("✅ Done!")
