@@ -80,14 +80,13 @@ def generate_audio(text):
         "text": text,
         "model_id": "eleven_turbo_v2", 
         "voice_settings": {
-        "stability": 0.65,
-        "similarity_boost": 0.9,
-        "style": 0.5,
-        "use_speaker_boost": True
-}
-
+            "stability": 0.65,
+            "similarity_boost": 0.9,
+            "style": 0.5,
+            "use_speaker_boost": True
         }
-    }
+    }  # This is the correct closing brace (no extras)
+    
     response = requests.post(url, headers=HEADERS_11, json=payload)
     if response.status_code == 200:
         return BytesIO(response.content)
