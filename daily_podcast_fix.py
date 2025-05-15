@@ -58,7 +58,7 @@ def translate_text(text):
     # Translation prompt for the rest of the script
     prompt = (
         "Translate the following podcast script into natural, fluent Parisian French with an engaging and enthusiastic tone. "
-        "Write as if you're a popular French-speaking podcast host from Paris. Use casual, expressive language that sounds natural to French listeners. "
+        "Use casual, expressive language that sounds natural to French listeners, avoid Canadian french expressions. "
         "Keep the energy high and the phrasing conversational. Do not over-formalize.\n\n"
         f"{body_only}"
     )
@@ -81,7 +81,7 @@ def generate_audio(text):
         "voice_settings": {
             "stability": 0.65,
             "similarity_boost": 0.9,
-            "style": 0.2,
+            "style": 0,
             "use_speaker_boost": True
         }
     } 
