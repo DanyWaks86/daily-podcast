@@ -50,14 +50,14 @@ def translate_text(text):
 
     # Your fixed French intro
     french_intro = (
-        f"Bienvenue dans la Minute Gaming. Je suis Dany Waksman, un passionné de jeux vidéo et chaque jour je vous accompagne "
-        f"pour rester informé des dernières nouvelles du monde des jeux vidéo grace a ce podcast généré automatiquement par intelligence artificielle. "
-        f"C'est parti, on se lance avec le récap des actualités d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n\n"
+        f"Bienvenue dans la Minute Gaming ! Je suis Dany Waksman, passionné de jeux vidéo, et chaque jour, je vous emmène "
+        f" faire le tour des actus les plus marquantes de l’univers du jeux video. Un condensé d’infos, généré par intelligence artificielle "
+        f"pour rester à jour sans perdre une minute ! C'est parti pour le recap d'hier {(datetime.now() - timedelta(days=1)).strftime('%-d %B')}.\n\n"
     )
 
     # Translation prompt for the rest of the script
     prompt = (
-        "Translate the following podcast script into natural, fluent French with an engaging and enthusiastic tone. "
+        "Translate the following podcast script into natural, fluent Parisian French with an engaging and enthusiastic tone. "
         "Write as if you're a popular French-speaking podcast host from Paris. Use casual, expressive language that sounds natural to French listeners. "
         "Keep the energy high and the phrasing conversational. Do not over-formalize.\n\n"
         f"{body_only}"
@@ -81,7 +81,7 @@ def generate_audio(text):
         "voice_settings": {
             "stability": 0.65,
             "similarity_boost": 0.9,
-            "style": 0.5,
+            "style": 0.2,
             "use_speaker_boost": True
         }
     } 
