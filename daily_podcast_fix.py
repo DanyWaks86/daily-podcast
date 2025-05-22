@@ -30,7 +30,9 @@ BASE_URL = f"https://{PYTHONANYWHERE_USERNAME}.pythonanywhere.com/Podcast/"
 RSS_FILENAME = "rss.xml"
 MAX_EPISODES = 14
 
-TODAY = "2025-05-14"
+# Simulate a specific date (e.g., for testing older news days)
+NOW_UTC = datetime(2025, 5, 20, tzinfo=timezone.utc)
+TODAY = NOW_UTC.strftime('%Y-%m-%d')
 
 
 
@@ -72,7 +74,7 @@ def generate_script_from_text(rss_text):
 8. Aim for a **tight, energetic script** that runs around **4–5 minutes** when read aloud.
 
 Start the podcast script with this exact intro:
-"Welcome to the Daily Video Games Digest. I'm Dany Waksman, a video game enthusiast, bringing you this AI-generated podcast to stay informed with the latest in the gaming world. Let's jump right into yesterday’s biggest stories, May 13.”
+"Welcome to the Daily Video Games Digest. I'm Dany Waksman, a video game enthusiast, bringing you this AI-generated podcast to stay informed with the latest in the gaming world. Let's jump right into yesterday’s biggest stories, {(datetime.now() - timedelta(days=1)).strftime('%B %d')}.”
 
 
 End the podcast script with this exact outro:
@@ -211,7 +213,7 @@ def generate_show_notes(rss_text, date_str):
 def update_rss():
     rss_path = os.path.join(PODCAST_DIR, RSS_FILENAME)
     today_date = datetime.now().strftime('%Y-%m-%d')
-    pub_date_formatted = datetime.strptime(TODAY, "%Y-%m-%d").strftime('%a, %d %b %Y 06:00:00 GMT')
+    pub_date_formatted = datetime.now().strftime('%a, %d %b %Y 06:00:00 GMT')
 
     print("📥 Fetching latest rss.xml from PythonAnywhere...")
     headers = {
