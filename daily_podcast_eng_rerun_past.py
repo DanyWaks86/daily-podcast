@@ -31,7 +31,7 @@ RSS_FILENAME = "rss.xml"
 MAX_EPISODES = 14
 
 # Simulate a specific date (e.g., for testing older news days)
-NOW_UTC = datetime(2025, 5, 20, tzinfo=timezone.utc)
+NOW_UTC = datetime(2025, 5, 21, tzinfo=timezone.utc)
 TODAY = NOW_UTC.strftime('%Y-%m-%d')
 
 
