@@ -129,7 +129,7 @@ def text_to_speech(text: str):
     if not OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY not set")
 
-    payload_text = f"{OPENAI_TTS_STYLE}\n\n{text}" if OPENAI_TTS_STYLE else text
+    payload_text = text  # speak the script only; no style text
 
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
