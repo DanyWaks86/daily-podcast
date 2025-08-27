@@ -120,6 +120,7 @@ Here are the real articles:
     return None, "Failed to generate script"
 
 
+
 # === NEW: OpenAI Text-to-Speech ===
 def text_to_speech(text: str):
     """
@@ -370,7 +371,22 @@ except Exception as e:
     print(f"❌ Exception during English script upload: {e}")
 
 print("🎙️ Converting script to audio (OpenAI TTS)...")
-audio_data = text_to_speech(script)
+
+# While TRIM_SECONDS > 0 (testing), only TTS ~20s worth of words to save time/cost.
+if TRIM_SECONDS and TRIM_SECONDS > 0:
+    try:
+        atempo = float(TTS_ATEMPO)
+    except Exception:
+        atempo = 1.0
+    # Rough pre-atempo speaking rate for the model
+    base_wpm = 170.0
+    effective_wpm = base_wpm * atempo
+    words_for_window = max(40, int(effective_wpm * (TRIM_SECONDS / 60.0)))  # ≈20s of speech
+    tts_input = " ".join(script.split()[:words_for_window])
+else:
+    tts_input = script
+
+audio_data = text_to_speech(tts_input)
 if not audio_data:
     print("❌ No audio data returned from TTS engine.")
     exit()
