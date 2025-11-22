@@ -76,7 +76,7 @@ Start the podcast script with this exact intro:
 
 
 End the podcast script with this exact outro:
-"Thanks for tuning into the Daily Video Games Digest. If you enjoyed today’s update, be sure to check back tomorrow for the latest in gaming news. Until then, happy gaming!"
+"Thanks for tuning into the Daily Video Games Digest. If you enjoyed today’s update, be sure to check back tomorrow for the latest in gaming news. Until then, happy gaming! All news in this episode was sourced from reliable, publicly available video game websites. This content is automatically generated and does not reflect my personal views or those of my employer. This podcast is not affiliated with my employer in any way"
 
 Here are the real articles:
 
