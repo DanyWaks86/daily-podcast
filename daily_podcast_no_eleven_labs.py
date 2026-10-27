@@ -96,7 +96,7 @@ Here are the real articles:
         "OpenAI-Project": OPENAI_PROJECT_ID
     }
     data = {
-        "model": "gpt-4-turbo",
+        "model": "gpt-6-luna",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7
     }
