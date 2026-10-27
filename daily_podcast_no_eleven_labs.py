@@ -98,7 +98,7 @@ Here are the real articles:
     data = {
         "model": "gpt-6-luna",
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7
+        "temperature": 1
     }
 
     try:
