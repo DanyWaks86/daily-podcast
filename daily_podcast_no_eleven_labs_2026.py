@@ -159,7 +159,7 @@ def fetch_rss_articles_txt():
     txt_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/{txt_filename}"
     response = requests.get(txt_url, headers=headers, timeout=120)
 
-    if response.status_code != 200:
+    if response.status_code not in (200, 201):
         print(f"❌ Failed to fetch RSS-scored articles: {response.text}")
         return None
     return response.text
@@ -171,7 +171,7 @@ def fetch_articles_json():
     try:
         response = requests.get(pa_files_url(f"rss_articles_all_{TODAY}.json"),
                                 headers=pa_headers(), timeout=120)
-        if response.status_code != 200:
+        if response.status_code not in (200, 201):
             print(f"ℹ️ No JSON article file for {TODAY} (HTTP {response.status_code}).")
             return None
         data = json.loads(response.content.decode("utf-8"))
@@ -239,7 +239,7 @@ def call_openai_chat(messages, temperature=0.7):
             time.sleep(5 * (attempt + 1))
             continue
 
-        if response.status_code != 200:
+        if response.status_code not in (200, 201):
             raise RuntimeError(f"OpenAI HTTP {response.status_code}: {response.text[:500]}")
 
         result = response.json()
@@ -533,7 +533,7 @@ def text_to_speech(text: str):
             print(f"⚠️ OpenAI TTS connection problem (attempt {attempt + 1}): {e}")
             time.sleep(5)
             continue
-        if response.status_code == 200:
+        if response.status_code in (200, 201):
             # Stream-join MP3 bytes
             return b"".join(response.iter_content(chunk_size=1024 * 64))
         try:
@@ -761,7 +761,7 @@ def push_to_pythonanywhere_api():
         try:
             with open(local_path, "rb") as f:
                 response = requests.post(upload_url + filename, headers=headers, files={"content": f}, timeout=300)
-            if response.status_code != 200:
+            if response.status_code not in (200, 201):
                 print(f"❌ Failed to upload {filename}: {response.text}")
                 failed.append(filename)
             else:
@@ -811,7 +811,7 @@ def main():
         headers = {"Authorization": f"Token {PYTHONANYWHERE_API_TOKEN}"}
         upload_url = f"https://www.pythonanywhere.com/api/v0/user/{PYTHONANYWHERE_USERNAME}/files/path/home/{PYTHONANYWHERE_USERNAME}/Podcast/en/podcast_{TODAY}.txt"
         response = requests.post(upload_url, headers=headers, files={"content": script.encode("utf-8")}, timeout=120)
-        if response.status_code == 200:
+        if response.status_code in (200, 201):
             print("✅ English script uploaded successfully to /Podcast/en/")
         else:
             print(f"⚠️ Failed to upload English script: {response.status_code} - {response.text}")
